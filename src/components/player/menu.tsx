@@ -31,14 +31,6 @@ export const PlayerMenu: React.FC = () => {
 								{config.menuGameLobby}
 							</button>
 						</li>
-						<li>
-							<button
-								onClick={() => handleNavigate('connections')}
-								className="w-full rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/10"
-							>
-								{config.menuConnections}
-							</button>
-						</li>
 						{/* Add more menu items here */}
 					</ul>
 				</div>

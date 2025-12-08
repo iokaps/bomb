@@ -9,8 +9,6 @@ export const schema = z.object({
 		.default(
 			'# Waiting for game to start...\nThe game will start once the host presses the start button.'
 		),
-	connectionsMd: z.string().default('# Connections example'),
-	sharedStateMd: z.string().default('# Shared State example'),
 
 	players: z.string().default('Players'),
 	timeElapsed: z.string().default('Time elapsed'),
@@ -19,7 +17,6 @@ export const schema = z.object({
 	loading: z.string().default('Loading...'),
 
 	menuTitle: z.string().default('Menu'),
-	menuConnections: z.string().default('Connections'),
 	menuGameLobby: z.string().default('Lobby'),
 
 	playerNameTitle: z.string().default('Enter Your Name'),

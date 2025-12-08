@@ -7,7 +7,6 @@ import { PlayerLayout } from '@/layouts/player';
 import { playerActions } from '@/state/actions/player-actions';
 import { globalStore } from '@/state/stores/global-store';
 import { playerStore } from '@/state/stores/player-store';
-import { ConnectionsView } from '@/views/connections-view';
 import { CreateProfileView } from '@/views/create-profile-view';
 import { GameLobbyView } from '@/views/game-lobby-view';
 import { GameView } from '@/views/game-view';
@@ -22,10 +21,6 @@ const App: React.FC = () => {
 
 	useGlobalController();
 	useDocumentTitle(title);
-
-	React.useEffect(() => {
-		console.log('App Player Mounted');
-	}, []);
 
 	React.useEffect(() => {
 		// While game start, force view to 'game', otherwise to 'lobby'
@@ -58,7 +53,6 @@ const App: React.FC = () => {
 
 				<PlayerLayout.Main>
 					{currentView === 'lobby' && <GameLobbyView />}
-					{currentView === 'connections' && <ConnectionsView />}
 					{currentView === 'game' && <GameView />}
 				</PlayerLayout.Main>
 

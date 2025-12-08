@@ -3,7 +3,6 @@ import { gameActions } from '@/state/actions/game-actions';
 import { globalStore } from '@/state/stores/global-store';
 import { playerStore } from '@/state/stores/player-store';
 import { cn } from '@/utils/cn';
-import { useKmAudioContext } from '@kokimoki/shared';
 import { Bomb } from 'lucide-react';
 import { useEffect } from 'react';
 import { useSnapshot } from 'valtio';
@@ -12,7 +11,6 @@ export const GameView = () => {
 	const { bombHolderId, currentQuestion, playerStatus, winnerId, players } =
 		useSnapshot(globalStore.proxy);
 	const { selectedOption } = useSnapshot(playerStore.proxy);
-	const { playAudio, stopAudio } = useKmAudioContext();
 
 	const myId = kmClient.id;
 	const isEliminated = playerStatus[myId] === 'eliminated';
@@ -25,60 +23,6 @@ export const GameView = () => {
 			state.selectedOption = null;
 		});
 	}, [currentQuestion?.id]);
-
-	useEffect(() => {
-		if (hasBomb) {
-			try {
-				playAudio(
-					'https://cdn.pixabay.com/audio/2022/03/10/audio_c8c8a73467.mp3',
-					0.5,
-					true
-				);
-			} catch (e) {
-				console.warn('Audio play failed', e);
-			}
-		} else {
-			try {
-				stopAudio();
-			} catch (e) {
-				console.warn('Audio stop failed', e);
-			}
-		}
-
-		return () => {
-			try {
-				stopAudio();
-			} catch (e) {
-				console.warn('Audio stop failed', e);
-			}
-		};
-	}, [hasBomb, playAudio, stopAudio]);
-
-	useEffect(() => {
-		if (isEliminated) {
-			try {
-				playAudio(
-					'https://cdn.pixabay.com/audio/2016/11/23/15/50/explosion-185296_1280.mp3',
-					0.8
-				);
-			} catch (e) {
-				console.warn('Audio play failed', e);
-			}
-		}
-	}, [isEliminated, playAudio]);
-
-	useEffect(() => {
-		if (winnerId) {
-			try {
-				playAudio(
-					'https://cdn.pixabay.com/audio/2021/08/04/audio_12b0c7443c.mp3',
-					0.7
-				);
-			} catch (e) {
-				console.warn('Audio play failed', e);
-			}
-		}
-	}, [winnerId, playAudio]);
 
 	if (winnerId) {
 		return (
@@ -124,14 +68,6 @@ export const GameView = () => {
 										key={idx}
 										disabled={!!selectedOption}
 										onClick={() => {
-											try {
-												playAudio(
-													'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
-													0.5
-												);
-											} catch (e) {
-												console.warn('Audio play failed', e);
-											}
 											// Set selected option locally first
 											kmClient.transact([playerStore], ([state]) => {
 												state.selectedOption = option;

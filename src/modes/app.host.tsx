@@ -6,7 +6,7 @@ import { HostPresenterLayout } from '@/layouts/host-presenter';
 import { kmClient } from '@/services/km-client';
 import { gameActions } from '@/state/actions/game-actions';
 import { globalStore } from '@/state/stores/global-store';
-import { KmQrCode, useKmAudioContext } from '@kokimoki/shared';
+import { KmQrCode } from '@kokimoki/shared';
 import * as React from 'react';
 import { useState } from 'react';
 import { useSnapshot } from 'valtio';
@@ -15,7 +15,6 @@ const App: React.FC = () => {
 	useGlobalController();
 	const { title } = config;
 	useDocumentTitle(title);
-	const { playAudio } = useKmAudioContext();
 
 	const { started, players, bombHolderId, winnerId, questionQueue } =
 		useSnapshot(globalStore.proxy);
@@ -117,14 +116,6 @@ const App: React.FC = () => {
 									onClick={async () => {
 										setLoading(true);
 										try {
-											try {
-												playAudio(
-													'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
-													0.5
-												);
-											} catch (e) {
-												console.warn('Audio play failed', e);
-											}
 											await gameActions.startGame(theme, language);
 										} finally {
 											setLoading(false);
