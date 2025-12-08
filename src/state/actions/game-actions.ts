@@ -34,7 +34,8 @@ async function generateQuestions(
 		try {
 			// Use chat instead of generateJson to handle parsing manually
 			// This avoids SyntaxErrors if the model returns markdown or malformed JSON
-			const { content } = await kmClient.ai.chat({
+			// Add timeout to prevent freezing
+			const chatPromise = kmClient.ai.chat({
 				model: 'gemini-2.5-flash',
 				systemPrompt: `You are a trivia host for a fast-paced live game called "Bomb". Generate ${needed} trivia questions as a JSON array of objects. Each object must have fields: id, text, options (array of 4 strings), correctAnswer. 
 			
@@ -47,10 +48,18 @@ async function generateQuestions(
 			- Options: Keep options short (1-3 words ideally).
 			- Variety: Ensure questions cover different sub-topics within the theme. Avoid repetitive question patterns.
 			- Uniqueness: Do not repeat questions from the provided list.
+			- Strict Mode: Return raw JSON only. Do not include any conversational text.
 			${avoidText}`,
 				userPrompt: `Generate ${needed} unique and diverse questions about "${theme}" in ${language}.`,
 				temperature: 0.9 + (attempts - 1) * 0.1
 			});
+
+			// 8 second timeout
+			const timeoutPromise = new Promise<{ content: string }>((_, reject) =>
+				setTimeout(() => reject(new Error('AI generation timed out')), 8000)
+			);
+
+			const { content } = await Promise.race([chatPromise, timeoutPromise]);
 
 			let jsonString = content.trim();
 			// Strip markdown code blocks if present
@@ -143,12 +152,12 @@ async function replenishQueue() {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		try {
-			// Request smaller batch (5) to reduce JSON errors and latency
+			// Request batch of 10 to ensure we stay ahead of gameplay
 			const newQuestions = await generateQuestions(
 				gameSettings.theme,
 				gameSettings.difficulty,
 				gameSettings.language,
-				5,
+				10,
 				[...usedQuestionTexts, ...questionQueue.map((q) => q.text)]
 			);
 
@@ -165,10 +174,12 @@ async function replenishQueue() {
 			console.error('Background question fetch failed', err);
 		} finally {
 			isReplenishing = false;
-			// If we still need more questions, try again (but let the event loop breathe)
-			if (globalStore.proxy.questionQueue.length < 20) {
-				// Use a longer timeout to prevent tight loops if generation is failing or slow
-				setTimeout(replenishQueue, 5000);
+			// If we still need more questions, try again
+			const currentSize = globalStore.proxy.questionQueue.length;
+			if (currentSize < 20) {
+				// If critically low, retry quickly. Otherwise wait a bit.
+				const delay = currentSize < 5 ? 500 : 2000;
+				setTimeout(replenishQueue, delay);
 			}
 		}
 	}
@@ -213,25 +224,6 @@ async function getNextQuestion(): Promise<Question> {
 }
 
 export const gameActions = {
-	async prepareGame(theme: string, language: string) {
-		// Clear existing queue and settings
-		await kmClient.transact([globalStore], ([state]) => {
-			state.gameSettings.theme = theme;
-			state.gameSettings.language = language;
-			state.gameSettings.difficulty = 1;
-			state.questionQueue = [];
-			state.usedQuestionTexts = [];
-		});
-
-		// Generate initial batch of questions
-		const questions = await generateQuestions(theme, 1, language, 30, []);
-
-		await kmClient.transact([globalStore], ([state]) => {
-			state.questionQueue.push(...questions);
-			questions.forEach((q) => state.usedQuestionTexts.push(q.text));
-		});
-	},
-
 	async startGame(theme: string, language: string = 'English') {
 		// 1. Set up game state
 		await kmClient.transact([globalStore], ([state]) => {
@@ -241,10 +233,10 @@ export const gameActions = {
 			state.gameSettings.language = language;
 			state.gameSettings.difficulty = 1;
 			state.winnerId = null;
-			// Don't clear queue here if it's already populated by prepareGame
-			if (state.questionQueue.length === 0) {
-				state.usedQuestionTexts = [];
-			}
+
+			// Always clear queue on start to ensure questions match the new theme
+			state.questionQueue = [];
+			state.usedQuestionTexts = [];
 
 			// Initialize all players as alive
 			const playerIds = Object.keys(state.players);
