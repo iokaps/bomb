@@ -1,6 +1,7 @@
 import { kmClient } from '@/services/km-client';
+import { gameActions } from '@/state/actions/game-actions';
 import { globalStore } from '@/state/stores/global-store';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSnapshot } from 'valtio';
 import { useServerTimer } from './useServerTime';
 
@@ -10,6 +11,7 @@ export function useGlobalController() {
 	const connectionIds = connections.connectionIds;
 	const isGlobalController = controllerConnectionId === kmClient.connectionId;
 	const serverTime = useServerTimer(1000); // tick every second
+	const isHandlingExplosion = useRef(false);
 
 	// Maintain connection that is assigned to be the global controller
 	useEffect(() => {
@@ -35,9 +37,15 @@ export function useGlobalController() {
 			return;
 		}
 
-		// Global controller-specific logic goes here
-		// For example, a time-based event that modifies the global state
-		// All global controller logic does not need to be time-based
+		const { started, bombExplosionTime } = globalStore.proxy;
+		if (started && bombExplosionTime && serverTime >= bombExplosionTime) {
+			if (isHandlingExplosion.current) return;
+
+			isHandlingExplosion.current = true;
+			gameActions.handleExplosion().finally(() => {
+				isHandlingExplosion.current = false;
+			});
+		}
 	}, [isGlobalController, serverTime]);
 
 	return isGlobalController;
