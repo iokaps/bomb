@@ -1,4 +1,3 @@
-import { ExplosionSound } from '@/components/explosion-sound';
 import { config } from '@/config';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useGlobalController } from '@/hooks/useGlobalController';
@@ -21,6 +20,8 @@ const App: React.FC = () => {
 		globalStore.proxy
 	);
 	const [theme, setTheme] = useState('General Knowledge');
+	const [language, setLanguage] = useState('English');
+	const [loading, setLoading] = useState(false);
 
 	if (kmClient.clientContext.mode !== 'host') {
 		throw new Error('App host rendered in non-host mode');
@@ -37,7 +38,6 @@ const App: React.FC = () => {
 
 	return (
 		<HostPresenterLayout.Root>
-			<ExplosionSound />
 			<HostPresenterLayout.Header>
 				<div className="text-sm opacity-70">{config.hostLabel}</div>
 			</HostPresenterLayout.Header>
@@ -84,13 +84,44 @@ const App: React.FC = () => {
 									className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
 								/>
 							</div>
+							<div>
+								<label className="block text-sm font-medium text-gray-700">
+									Language
+								</label>
+								<select
+									value={language}
+									onChange={(e) => setLanguage(e.target.value)}
+									className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+								>
+									<option value="English">English</option>
+									<option value="Spanish">Spanish</option>
+									<option value="French">French</option>
+									<option value="German">German</option>
+									<option value="Italian">Italian</option>
+									<option value="Portuguese">Portuguese</option>
+									<option value="Japanese">Japanese</option>
+									<option value="Korean">Korean</option>
+									<option value="Chinese">Chinese</option>
+									<option value="Russian">Russian</option>
+									<option value="Greek">Greek</option>
+								</select>
+							</div>
 							<button
-								onClick={() => gameActions.startGame(theme)}
+								onClick={async () => {
+									setLoading(true);
+									try {
+										await gameActions.startGame(theme, language);
+									} finally {
+										setLoading(false);
+									}
+								}}
 								className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-								disabled={Object.keys(players).length < 2}
+								disabled={Object.keys(players).length < 2 || loading}
 							>
-								Start Game{' '}
-								{Object.keys(players).length < 2 && '(Need 2+ players)'}
+								{loading ? 'Starting...' : 'Start Game'}
+								{!loading &&
+									Object.keys(players).length < 2 &&
+									' (Need 2+ players)'}
 							</button>
 							{winnerId && (
 								<div className="text-xl font-bold text-green-600">

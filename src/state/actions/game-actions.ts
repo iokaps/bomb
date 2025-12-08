@@ -3,37 +3,40 @@ import { globalStore, type Question } from '../stores/global-store';
 import { playerStore } from '../stores/player-store';
 
 // Helper to generate a question using AI
-async function generateQuestion(
+async function generateQuestions(
 	theme: string,
 	difficulty: number,
+	language: string,
+	count: number = 1,
 	usedQuestionIds: string[] = []
-): Promise<Question> {
+): Promise<Question[]> {
 	const difficultyText =
 		difficulty === 1 ? 'easy' : difficulty === 2 ? 'medium' : 'hard';
 
 	try {
 		const questions = await kmClient.ai.generateJson<Question[]>({
-			systemPrompt: `You are a trivia host for a game called "Bomb". Generate a single trivia question as a JSON array containing one object. The object must have fields: id, text, options (array of 4 strings), correctAnswer. The question should be ${difficultyText} difficulty and related to the theme provided.`,
-			userPrompt: `Theme: ${theme}. Generate 1 unique question.`,
+			model: 'gemini-2.5-flash',
+			systemPrompt: `You are a trivia host for a game called "Bomb". Generate ${count} trivia questions as a JSON array of objects. Each object must have fields: id, text, options (array of 4 strings), correctAnswer. The questions should be ${difficultyText} difficulty, related to the theme provided, and in ${language} language.`,
+			userPrompt: `Theme: ${theme}. Language: ${language}. Generate ${count} unique questions.`,
 			temperature: 0.9
 		});
 
 		if (questions && questions.length > 0) {
-			const q = questions[0];
-			// Ensure ID is unique if AI doesn't generate a good one, or just overwrite it
-			q.id = Math.random().toString(36).substring(7);
-			return q;
+			return questions.map((q) => ({
+				...q,
+				id: Math.random().toString(36).substring(7)
+			}));
 		}
 		throw new Error('No questions generated');
 	} catch (error) {
-		console.error('Failed to generate question:', error);
-		// Fallback question
-		return {
-			id: 'fallback-' + Date.now(),
+		console.error('Failed to generate questions:', error);
+		// Fallback questions
+		return Array.from({ length: count }).map((_, i) => ({
+			id: 'fallback-' + Date.now() + '-' + i,
 			text: 'What is the capital of France?',
 			options: ['London', 'Berlin', 'Paris', 'Madrid'],
 			correctAnswer: 'Paris'
-		};
+		}));
 	}
 }
 
@@ -44,29 +47,48 @@ async function replenishQueue() {
 	if (isReplenishing) return;
 
 	const state = globalStore.proxy;
-	const { gameSettings, usedQuestionIds, questionQueue } = state;
+	const {
+		gameSettings,
+		usedQuestionIds,
+		questionQueue,
+		started,
+		controllerConnectionId
+	} = state;
 
-	// Keep 2 questions in reserve
-	if (questionQueue.length < 2) {
+	// Only the controller should replenish the queue to avoid race conditions
+	if (kmClient.connectionId !== controllerConnectionId) return;
+
+	// Don't replenish if game is not started
+	if (!started) return;
+
+	// Keep 10 questions in reserve
+	if (questionQueue.length < 10) {
 		isReplenishing = true;
+
+		// Yield to main thread before starting heavy work
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
 		try {
-			const newQuestion = await generateQuestion(
+			const newQuestions = await generateQuestions(
 				gameSettings.theme,
 				gameSettings.difficulty,
+				gameSettings.language,
+				10,
 				[...usedQuestionIds, ...questionQueue.map((q) => q.id)]
 			);
 
 			await kmClient.transact([globalStore], ([s]) => {
-				s.questionQueue.push(newQuestion);
-				s.usedQuestionIds.push(newQuestion.id);
+				s.questionQueue.push(...newQuestions);
+				newQuestions.forEach((q) => s.usedQuestionIds.push(q.id));
 			});
 		} catch (err) {
 			console.error('Background question fetch failed', err);
 		} finally {
 			isReplenishing = false;
 			// If we still need more questions, try again (but let the event loop breathe)
-			if (globalStore.proxy.questionQueue.length < 2) {
-				setTimeout(replenishQueue, 1000);
+			if (globalStore.proxy.questionQueue.length < 10) {
+				// Use a longer timeout to prevent tight loops if generation is failing or slow
+				setTimeout(replenishQueue, 5000);
 			}
 		}
 	}
@@ -83,33 +105,41 @@ async function getNextQuestion(): Promise<Question> {
 			nextQ = s.questionQueue.shift() || null;
 		});
 		if (nextQ) {
-			replenishQueue(); // Trigger background refill
+			// Trigger background refill asynchronously
+			setTimeout(() => replenishQueue(), 100);
 			return nextQ;
 		}
 	}
 
 	// Fallback if queue is empty (e.g. start of game or network lag)
-	const q = await generateQuestion(
+	const questions = await generateQuestions(
 		state.gameSettings.theme,
 		state.gameSettings.difficulty,
+		state.gameSettings.language,
+		1,
 		state.usedQuestionIds
 	);
+	const q = questions[0];
 
 	// Mark as used immediately
 	await kmClient.transact([globalStore], ([s]) => {
 		s.usedQuestionIds.push(q.id);
 	});
 
+	// Trigger replenishment asynchronously
+	setTimeout(() => replenishQueue(), 100);
+
 	return q;
 }
 
 export const gameActions = {
-	async startGame(theme: string) {
+	async startGame(theme: string, language: string = 'English') {
 		// 1. Set up game state
 		await kmClient.transact([globalStore], ([state]) => {
 			state.started = true;
 			state.startTimestamp = kmClient.serverTimestamp();
 			state.gameSettings.theme = theme;
+			state.gameSettings.language = language;
 			state.gameSettings.difficulty = 1;
 			state.winnerId = null;
 			state.questionQueue = [];
@@ -252,5 +282,9 @@ export const gameActions = {
 			state.currentQuestion = null;
 			state.questionQueue = [];
 		});
+	},
+
+	checkQueue() {
+		replenishQueue();
 	}
 };

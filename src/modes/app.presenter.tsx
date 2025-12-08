@@ -1,4 +1,3 @@
-import { ExplosionSound } from '@/components/explosion-sound';
 import { config } from '@/config';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useGlobalController } from '@/hooks/useGlobalController';
@@ -28,7 +27,6 @@ const App: React.FC = () => {
 
 	return (
 		<HostPresenterLayout.Root>
-			<ExplosionSound />
 			<HostPresenterLayout.Header>
 				<div className="text-sm opacity-70">{config.presenterLabel}</div>
 			</HostPresenterLayout.Header>

@@ -25,6 +25,7 @@ export interface GlobalState {
 	gameSettings: {
 		theme: string;
 		difficulty: number;
+		language: string;
 	};
 }
 
@@ -43,7 +44,8 @@ const initialState: GlobalState = {
 
 	gameSettings: {
 		theme: 'General Knowledge',
-		difficulty: 1
+		difficulty: 1,
+		language: 'English'
 	}
 };
 

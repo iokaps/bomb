@@ -1,5 +1,5 @@
 import type { ClientContext } from '@/types';
-import { useCallback, useEffect, useRef, useState, type FC } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type FC } from 'react';
 import { generateLink } from './generate-link';
 
 interface Props {
@@ -10,7 +10,10 @@ interface Props {
 export const DevFrame: FC<Props> = ({ clientKey, context }) => {
 	const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
-	const [link, setLink] = useState('');
+	const link = useMemo(
+		() => generateLink(clientKey, context),
+		[clientKey, context]
+	);
 
 	const onMessage = useCallback(
 		(event: MessageEvent) => {
@@ -34,11 +37,6 @@ export const DevFrame: FC<Props> = ({ clientKey, context }) => {
 		window.addEventListener('message', onMessage);
 		return () => window.removeEventListener('message', onMessage);
 	}, [onMessage]);
-
-	useEffect(() => {
-		// setContextBase64(btoa(JSON.stringify(context)));
-		setLink(generateLink(clientKey, context));
-	}, [clientKey, context]);
 
 	function clearStorage() {
 		iframeRef.current?.contentWindow?.postMessage('km:clearStorage', '*');

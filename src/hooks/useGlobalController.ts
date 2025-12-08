@@ -38,6 +38,12 @@ export function useGlobalController() {
 		}
 
 		const { started, bombExplosionTime } = globalStore.proxy;
+
+		// Check queue health
+		if (started) {
+			gameActions.checkQueue();
+		}
+
 		if (started && bombExplosionTime && serverTime >= bombExplosionTime) {
 			if (isHandlingExplosion.current) return;
 
