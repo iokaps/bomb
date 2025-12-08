@@ -1,6 +1,8 @@
 import { kmClient } from '@/services/km-client';
 import { gameActions } from '@/state/actions/game-actions';
 import { globalStore } from '@/state/stores/global-store';
+import { playerStore } from '@/state/stores/player-store';
+import { cn } from '@/utils/cn';
 import { useKmAudioContext } from '@kokimoki/shared';
 import { Bomb } from 'lucide-react';
 import { useEffect } from 'react';
@@ -9,6 +11,7 @@ import { useSnapshot } from 'valtio';
 export const GameView = () => {
 	const { bombHolderId, currentQuestion, playerStatus, winnerId, players } =
 		useSnapshot(globalStore.proxy);
+	const { selectedOption } = useSnapshot(playerStore.proxy);
 	const { playAudio, stopAudio } = useKmAudioContext();
 
 	const myId = kmClient.id;
@@ -86,21 +89,35 @@ export const GameView = () => {
 							{currentQuestion.text}
 						</h3>
 						<div className="grid grid-cols-1 gap-3">
-							{currentQuestion.options.map((option, idx) => (
-								<button
-									key={idx}
-									onClick={() => {
-										playAudio(
-											'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
-											0.5
-										);
-										gameActions.submitAnswer(currentQuestion.id, option);
-									}}
-									className="text-game-text hover:border-game-primary rounded-lg border border-white/10 bg-white/5 p-4 text-left transition-all hover:bg-white/10 active:bg-white/20"
-								>
-									{option}
-								</button>
-							))}
+							{currentQuestion.options.map((option, idx) => {
+								const isSelected = selectedOption === option;
+								return (
+									<button
+										key={idx}
+										disabled={!!selectedOption}
+										onClick={() => {
+											playAudio(
+												'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
+												0.5
+											);
+											// Set selected option locally first
+											kmClient.transact([playerStore], ([state]) => {
+												state.selectedOption = option;
+											});
+											gameActions.submitAnswer(currentQuestion.id, option);
+										}}
+										className={cn(
+											'text-game-text rounded-lg border p-4 text-left transition-all',
+											isSelected
+												? 'border-game-primary bg-game-primary/20 ring-game-primary ring-2'
+												: 'hover:border-game-primary border-white/10 bg-white/5 hover:bg-white/10 active:bg-white/20',
+											!!selectedOption && !isSelected && 'opacity-50'
+										)}
+									>
+										{option}
+									</button>
+								);
+							})}
 						</div>
 					</div>
 				) : (
