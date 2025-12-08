@@ -6,7 +6,7 @@ import { HostPresenterLayout } from '@/layouts/host-presenter';
 import { kmClient } from '@/services/km-client';
 import { gameActions } from '@/state/actions/game-actions';
 import { globalStore } from '@/state/stores/global-store';
-import { KmQrCode } from '@kokimoki/shared';
+import { KmQrCode, useKmAudioContext } from '@kokimoki/shared';
 import * as React from 'react';
 import { useState } from 'react';
 import { useSnapshot } from 'valtio';
@@ -15,13 +15,14 @@ const App: React.FC = () => {
 	useGlobalController();
 	const { title } = config;
 	useDocumentTitle(title);
+	const { playAudio } = useKmAudioContext();
 
-	const { started, players, bombHolderId, winnerId } = useSnapshot(
-		globalStore.proxy
-	);
+	const { started, players, bombHolderId, winnerId, questionQueue } =
+		useSnapshot(globalStore.proxy);
 	const [theme, setTheme] = useState('General Knowledge');
 	const [language, setLanguage] = useState('English');
 	const [loading, setLoading] = useState(false);
+	const [generating, setGenerating] = useState(false);
 
 	if (kmClient.clientContext.mode !== 'host') {
 		throw new Error('App host rendered in non-host mode');
@@ -43,25 +44,29 @@ const App: React.FC = () => {
 			</HostPresenterLayout.Header>
 
 			<HostPresenterLayout.Main>
-				<div className="rounded-lg border border-gray-200 bg-white shadow-md">
+				<div className="bg-game-surface rounded-lg border border-white/10 shadow-xl">
 					<div className="flex flex-col gap-2 p-6">
-						<h2 className="text-xl font-bold">{config.gameLinksTitle}</h2>
-						<KmQrCode data={playerLink} size={200} interactive={false} />
-						<div className="flex gap-2">
+						<h2 className="text-game-text text-xl font-bold">
+							{config.gameLinksTitle}
+						</h2>
+						<div className="w-fit rounded-lg bg-white p-4">
+							<KmQrCode data={playerLink} size={200} interactive={false} />
+						</div>
+						<div className="flex gap-2 text-sm">
 							<a
 								href={playerLink}
 								target="_blank"
 								rel="noreferrer"
-								className="break-all text-blue-600 underline hover:text-blue-700"
+								className="text-game-primary hover:text-game-accent break-all underline"
 							>
 								{config.playerLinkLabel}
 							</a>
-							|
+							<span className="text-game-text-muted">|</span>
 							<a
 								href={presenterLink}
 								target="_blank"
 								rel="noreferrer"
-								className="break-all text-blue-600 underline hover:text-blue-700"
+								className="text-game-primary hover:text-game-accent break-all underline"
 							>
 								{config.presenterLinkLabel}
 							</a>
@@ -69,29 +74,31 @@ const App: React.FC = () => {
 					</div>
 				</div>
 
-				<div className="rounded-lg border border-gray-200 bg-white p-6 shadow-md">
-					<h2 className="mb-4 text-xl font-bold">Game Controls</h2>
+				<div className="bg-game-surface rounded-lg border border-white/10 p-6 shadow-xl">
+					<h2 className="text-game-text mb-4 text-xl font-bold">
+						Game Controls
+					</h2>
 					{!started ? (
 						<div className="flex flex-col gap-4">
 							<div>
-								<label className="block text-sm font-medium text-gray-700">
+								<label className="text-game-text-muted block text-sm font-medium">
 									Theme
 								</label>
 								<input
 									type="text"
 									value={theme}
 									onChange={(e) => setTheme(e.target.value)}
-									className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+									className="bg-game-bg text-game-text focus:border-game-primary focus:ring-game-primary mt-1 block w-full rounded-md border border-white/20 p-2 shadow-sm sm:text-sm"
 								/>
 							</div>
 							<div>
-								<label className="block text-sm font-medium text-gray-700">
+								<label className="text-game-text-muted block text-sm font-medium">
 									Language
 								</label>
 								<select
 									value={language}
 									onChange={(e) => setLanguage(e.target.value)}
-									className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+									className="bg-game-bg text-game-text focus:border-game-primary focus:ring-game-primary mt-1 block w-full rounded-md border border-white/20 p-2 shadow-sm sm:text-sm"
 								>
 									<option value="English">English</option>
 									<option value="Spanish">Spanish</option>
@@ -106,41 +113,68 @@ const App: React.FC = () => {
 									<option value="Greek">Greek</option>
 								</select>
 							</div>
-							<button
-								onClick={async () => {
-									setLoading(true);
-									try {
-										await gameActions.startGame(theme, language);
-									} finally {
-										setLoading(false);
+							<div className="flex gap-2">
+								<button
+									onClick={async () => {
+										setGenerating(true);
+										try {
+											await gameActions.prepareGame(theme, language);
+										} finally {
+											setGenerating(false);
+										}
+									}}
+									className="bg-game-accent flex-1 rounded px-4 py-2 font-medium text-white transition-colors hover:bg-purple-600 disabled:opacity-50"
+									disabled={generating || loading}
+								>
+									{generating ? 'Generating...' : 'Generate Questions'}
+								</button>
+								<button
+									onClick={async () => {
+										setLoading(true);
+										try {
+											playAudio(
+												'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
+												0.5
+											);
+											await gameActions.startGame(theme, language);
+										} finally {
+											setLoading(false);
+										}
+									}}
+									className="bg-game-primary flex-1 rounded px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
+									disabled={
+										Object.keys(players).length < 2 || loading || generating
 									}
-								}}
-								className="rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50"
-								disabled={Object.keys(players).length < 2 || loading}
-							>
-								{loading ? 'Starting...' : 'Start Game'}
-								{!loading &&
-									Object.keys(players).length < 2 &&
-									' (Need 2+ players)'}
-							</button>
+								>
+									{loading ? 'Starting...' : 'Start Game'}
+									{!loading &&
+										Object.keys(players).length < 2 &&
+										' (Need 2+ players)'}
+								</button>
+							</div>
+							{questionQueue.length > 0 && (
+								<div className="text-sm font-medium text-green-400">
+									{questionQueue.length} questions ready!
+								</div>
+							)}
 							{winnerId && (
-								<div className="text-xl font-bold text-green-600">
+								<div className="text-xl font-bold text-green-400">
 									Winner: {players[winnerId]?.name || winnerId}
 								</div>
 							)}
 						</div>
 					) : (
 						<div className="flex flex-col gap-4">
-							<div className="text-lg">Game in progress!</div>
-							<div>
+							<div className="text-game-text text-lg">Game in progress!</div>
+							<div className="text-game-text">
 								Bomb Holder:{' '}
-								<strong className="text-red-600">
+								<strong className="animate-pulse text-red-500">
 									{players[bombHolderId!]?.name || 'Unknown'}
 								</strong>
 							</div>
 							<button
 								onClick={() => gameActions.stopGame()}
-								className="rounded bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+								className="rounded bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700"
 							>
 								Stop Game
 							</button>

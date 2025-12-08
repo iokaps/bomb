@@ -51,6 +51,9 @@ export default defineConfig({
 			'@': resolve(process.cwd(), './src')
 		}
 	},
+	define: {
+		'process.env': {}
+	},
 	experimental: {
 		renderBuiltUrl(filename, { hostType }) {
 			if (hostType === 'js') {

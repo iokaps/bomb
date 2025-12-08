@@ -28,34 +28,38 @@ export const ConnectionsView: React.FC<React.PropsWithChildren<Props>> = ({
 	return (
 		<div
 			className={cn(
-				'bg-white border border-gray-200 rounded-lg shadow-md w-full',
+				'bg-game-surface w-full rounded-lg border border-white/10 shadow-xl',
 				className
 			)}
 		>
 			<div className="p-6">
-				<div className="prose">
+				<div className="prose prose-invert max-w-none">
 					<Markdown>{config.connectionsMd}</Markdown>
 				</div>
 
-				<div className="mt-4 bg-white border border-gray-200 rounded-lg shadow p-6">
-					<div className="text-sm text-gray-500">{config.players}</div>
-					<div className="text-3xl font-bold mt-1">{onlinePlayersCount}</div>
+				<div className="mt-6 rounded-lg border border-white/10 bg-white/5 p-6">
+					<div className="text-game-text-muted text-sm">{config.players}</div>
+					<div className="text-game-text mt-1 text-3xl font-bold">
+						{onlinePlayersCount}
+					</div>
 				</div>
 
 				{playersList.length > 0 && (
-					<div className="mt-4">
-						<h3 className="mb-2 text-lg font-semibold">Player List</h3>
-						<ul className="bg-slate-50 rounded-lg divide-y divide-gray-200">
+					<div className="mt-6">
+						<h3 className="text-game-text mb-3 text-lg font-semibold">
+							Player List
+						</h3>
+						<ul className="divide-y divide-white/10 rounded-lg border border-white/10 bg-white/5">
 							{playersList.map((player) => (
 								<li key={player.id} className="px-4 py-3">
-									<div className="flex items-center justify-between">
+									<div className="text-game-text flex items-center justify-between">
 										<span>{player.name}</span>
 										<span
 											className={cn(
-												'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
+												'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium',
 												player.isOnline
-													? 'bg-green-100 text-green-800'
-													: 'border border-gray-300 text-gray-700'
+													? 'border-green-500/30 bg-green-500/20 text-green-400'
+													: 'text-game-text-muted border-white/10 bg-white/5'
 											)}
 										>
 											{player.isOnline ? 'Online' : 'Offline'}

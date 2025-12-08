@@ -5,15 +5,23 @@
 @import 'tailwindcss';
 @import '@kokimoki/shared/styles.css';
 
-@plugin "@tailwindcss/typography";
+@plugin '@tailwindcss/typography';
 
 @theme {
 	--font-family: 'Noto Sans', sans-serif;
-	/* Add theme styling here */
+
+	--color-game-bg: #0f172a;
+	--color-game-primary: #6366f1;
+	--color-game-secondary: #ec4899;
+	--color-game-accent: #8b5cf6;
+	--color-game-surface: #1e293b;
+	--color-game-text: #f8fafc;
+	--color-game-text-muted: #94a3b8;
 }
 
 html,
 body {
-	background-color: var(--color-slate-100);
+	background-color: var(--color-game-bg);
+	color: var(--color-game-text);
 	font-family: var(--font-family);
 }

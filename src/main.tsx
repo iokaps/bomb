@@ -1,3 +1,4 @@
+import { KmAudioProvider } from '@kokimoki/shared';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { config } from './config';
@@ -5,7 +6,9 @@ import { launchApp } from './kit/app-launcher.tsx';
 
 function renderComponent(component: React.ReactNode) {
 	ReactDOM.createRoot(document.getElementById('root')!).render(
-		<React.StrictMode>{component}</React.StrictMode>
+		<React.StrictMode>
+			<KmAudioProvider>{component}</KmAudioProvider>
+		</React.StrictMode>
 	);
 }
 

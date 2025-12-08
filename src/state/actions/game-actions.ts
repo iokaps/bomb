@@ -8,36 +8,100 @@ async function generateQuestions(
 	difficulty: number,
 	language: string,
 	count: number = 1,
-	usedQuestionIds: string[] = []
+	avoidQuestions: string[] = []
 ): Promise<Question[]> {
 	const difficultyText =
 		difficulty === 1 ? 'easy' : difficulty === 2 ? 'medium' : 'hard';
+	const collectedQuestions: Question[] = [];
+	let attempts = 0;
+	const maxAttempts = 3;
 
-	try {
-		const questions = await kmClient.ai.generateJson<Question[]>({
-			model: 'gemini-2.5-flash',
-			systemPrompt: `You are a trivia host for a game called "Bomb". Generate ${count} trivia questions as a JSON array of objects. Each object must have fields: id, text, options (array of 4 strings), correctAnswer. The questions should be ${difficultyText} difficulty, related to the theme provided, and in ${language} language.`,
-			userPrompt: `Theme: ${theme}. Language: ${language}. Generate ${count} unique questions.`,
-			temperature: 0.9
-		});
+	while (collectedQuestions.length < count && attempts < maxAttempts) {
+		attempts++;
+		const needed = count - collectedQuestions.length;
 
-		if (questions && questions.length > 0) {
-			return questions.map((q) => ({
-				...q,
-				id: Math.random().toString(36).substring(7)
-			}));
+		// Take the last 50 questions to give the AI context on what to avoid
+		const currentAvoidList = [
+			...avoidQuestions,
+			...collectedQuestions.map((q) => q.text)
+		];
+		const recentQuestions = currentAvoidList.slice(-50);
+		const avoidText =
+			recentQuestions.length > 0
+				? `\nDo NOT use these questions or similar ones: ${JSON.stringify(recentQuestions)}`
+				: '';
+
+		try {
+			// Use chat instead of generateJson to handle parsing manually
+			// This avoids SyntaxErrors if the model returns markdown or malformed JSON
+			const { content } = await kmClient.ai.chat({
+				model: 'gemini-2.5-flash',
+				systemPrompt: `You are a trivia host for a game called "Bomb". Generate ${needed} trivia questions as a JSON array of objects. Each object must have fields: id, text, options (array of 4 strings), correctAnswer. 
+			
+			Guidelines:
+			- Output ONLY valid JSON. No markdown, no code blocks, no explanations.
+			- Difficulty: ${difficultyText}
+			- Theme: ${theme}
+			- Language: ${language}
+			- Variety: Ensure questions cover different sub-topics within the theme. Avoid repetitive question patterns.
+			- Uniqueness: Do not repeat questions from the provided list.
+			${avoidText}`,
+				userPrompt: `Generate ${needed} unique and diverse questions about "${theme}" in ${language}.`,
+				temperature: 0.9 + (attempts - 1) * 0.1
+			});
+
+			let jsonString = content.trim();
+			// Strip markdown code blocks if present
+			if (jsonString.startsWith('```json')) {
+				jsonString = jsonString
+					.replace(/^```json\s*/, '')
+					.replace(/\s*```$/, '');
+			} else if (jsonString.startsWith('```')) {
+				jsonString = jsonString.replace(/^```\s*/, '').replace(/\s*```$/, '');
+			}
+
+			const questions = JSON.parse(jsonString) as Question[];
+
+			if (questions && Array.isArray(questions) && questions.length > 0) {
+				// Validate structure
+				const validQuestions = questions.filter(
+					(q) =>
+						q &&
+						typeof q.text === 'string' &&
+						Array.isArray(q.options) &&
+						q.options.length === 4 &&
+						typeof q.correctAnswer === 'string'
+				);
+
+				// Client-side filtering to ensure no duplicates from the full history
+				const uniqueNew = validQuestions.filter(
+					(q) => !currentAvoidList.includes(q.text)
+				);
+
+				collectedQuestions.push(...uniqueNew);
+			}
+		} catch (error) {
+			console.error(`Attempt ${attempts} failed:`, error);
+			// Wait a bit before retry
+			await new Promise((resolve) => setTimeout(resolve, 1000));
 		}
-		throw new Error('No questions generated');
-	} catch (error) {
-		console.error('Failed to generate questions:', error);
-		// Fallback questions
-		return Array.from({ length: count }).map((_, i) => ({
-			id: 'fallback-' + Date.now() + '-' + i,
-			text: 'What is the capital of France?',
-			options: ['London', 'Berlin', 'Paris', 'Madrid'],
-			correctAnswer: 'Paris'
+	}
+
+	if (collectedQuestions.length > 0) {
+		return collectedQuestions.map((q) => ({
+			...q,
+			id: Math.random().toString(36).substring(7)
 		}));
 	}
+
+	console.warn('All generation attempts failed, using fallback');
+	// Fallback questions
+	return Array.from({ length: count }).map((_, i) => ({
+		id: 'fallback-' + Date.now() + '-' + i,
+		text: 'What is the capital of France?',
+		options: ['London', 'Berlin', 'Paris', 'Madrid'],
+		correctAnswer: 'Paris'
+	}));
 }
 
 let isReplenishing = false;
@@ -49,44 +113,58 @@ async function replenishQueue() {
 	const state = globalStore.proxy;
 	const {
 		gameSettings,
-		usedQuestionIds,
+		usedQuestionTexts,
 		questionQueue,
 		started,
 		controllerConnectionId
 	} = state;
 
 	// Only the controller should replenish the queue to avoid race conditions
-	if (kmClient.connectionId !== controllerConnectionId) return;
+	if (
+		!kmClient.connectionId ||
+		kmClient.connectionId !== controllerConnectionId
+	) {
+		return;
+	}
 
 	// Don't replenish if game is not started
 	if (!started) return;
 
-	// Keep 10 questions in reserve
-	if (questionQueue.length < 10) {
+	// Keep 20 questions in reserve
+	if (questionQueue.length < 20) {
+		console.log(
+			`Replenishing queue. Current size: ${questionQueue.length}. Target: 20`
+		);
 		isReplenishing = true;
 
 		// Yield to main thread before starting heavy work
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		try {
+			// Request smaller batch (5) to reduce JSON errors and latency
 			const newQuestions = await generateQuestions(
 				gameSettings.theme,
 				gameSettings.difficulty,
 				gameSettings.language,
-				10,
-				[...usedQuestionIds, ...questionQueue.map((q) => q.id)]
+				5,
+				[...usedQuestionTexts, ...questionQueue.map((q) => q.text)]
 			);
+
+			console.log(`Generated ${newQuestions.length} new questions`);
+
+			// Check if game is still started before updating
+			if (!globalStore.proxy.started) return;
 
 			await kmClient.transact([globalStore], ([s]) => {
 				s.questionQueue.push(...newQuestions);
-				newQuestions.forEach((q) => s.usedQuestionIds.push(q.id));
+				newQuestions.forEach((q) => s.usedQuestionTexts.push(q.text));
 			});
 		} catch (err) {
 			console.error('Background question fetch failed', err);
 		} finally {
 			isReplenishing = false;
 			// If we still need more questions, try again (but let the event loop breathe)
-			if (globalStore.proxy.questionQueue.length < 10) {
+			if (globalStore.proxy.questionQueue.length < 20) {
 				// Use a longer timeout to prevent tight loops if generation is failing or slow
 				setTimeout(replenishQueue, 5000);
 			}
@@ -117,13 +195,13 @@ async function getNextQuestion(): Promise<Question> {
 		state.gameSettings.difficulty,
 		state.gameSettings.language,
 		1,
-		state.usedQuestionIds
+		state.usedQuestionTexts
 	);
 	const q = questions[0];
 
 	// Mark as used immediately
 	await kmClient.transact([globalStore], ([s]) => {
-		s.usedQuestionIds.push(q.id);
+		s.usedQuestionTexts.push(q.text);
 	});
 
 	// Trigger replenishment asynchronously
@@ -133,6 +211,25 @@ async function getNextQuestion(): Promise<Question> {
 }
 
 export const gameActions = {
+	async prepareGame(theme: string, language: string) {
+		// Clear existing queue and settings
+		await kmClient.transact([globalStore], ([state]) => {
+			state.gameSettings.theme = theme;
+			state.gameSettings.language = language;
+			state.gameSettings.difficulty = 1;
+			state.questionQueue = [];
+			state.usedQuestionTexts = [];
+		});
+
+		// Generate initial batch of questions
+		const questions = await generateQuestions(theme, 1, language, 30, []);
+
+		await kmClient.transact([globalStore], ([state]) => {
+			state.questionQueue.push(...questions);
+			questions.forEach((q) => state.usedQuestionTexts.push(q.text));
+		});
+	},
+
 	async startGame(theme: string, language: string = 'English') {
 		// 1. Set up game state
 		await kmClient.transact([globalStore], ([state]) => {
@@ -142,8 +239,10 @@ export const gameActions = {
 			state.gameSettings.language = language;
 			state.gameSettings.difficulty = 1;
 			state.winnerId = null;
-			state.questionQueue = [];
-			state.usedQuestionIds = [];
+			// Don't clear queue here if it's already populated by prepareGame
+			if (state.questionQueue.length === 0) {
+				state.usedQuestionTexts = [];
+			}
 
 			// Initialize all players as alive
 			const playerIds = Object.keys(state.players);

@@ -6,13 +6,21 @@ import { HostPresenterLayout } from '@/layouts/host-presenter';
 import { kmClient } from '@/services/km-client';
 import { globalStore } from '@/state/stores/global-store';
 import { KmQrCode } from '@kokimoki/shared';
+import { Bomb, Crown, Skull } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import * as React from 'react';
 import { useSnapshot } from 'valtio';
 
 const App: React.FC = () => {
 	const { title } = config;
-	const { started, players, bombHolderId, playerStatus, winnerId } =
-		useSnapshot(globalStore.proxy);
+	const {
+		started,
+		players,
+		bombHolderId,
+		playerStatus,
+		winnerId,
+		currentQuestion
+	} = useSnapshot(globalStore.proxy);
 
 	useGlobalController();
 	useDocumentTitle(title);
@@ -25,80 +33,176 @@ const App: React.FC = () => {
 		mode: 'player'
 	});
 
+	// Separate players
+	const alivePlayers = Object.entries(players).filter(
+		([id]) => playerStatus[id] !== 'eliminated'
+	);
+	const eliminatedPlayers = Object.entries(players).filter(
+		([id]) => playerStatus[id] === 'eliminated'
+	);
+
 	return (
-		<HostPresenterLayout.Root>
+		<HostPresenterLayout.Root className="overflow-hidden">
 			<HostPresenterLayout.Header>
 				<div className="text-sm opacity-70">{config.presenterLabel}</div>
 			</HostPresenterLayout.Header>
 
-			<HostPresenterLayout.Main>
-				<div className="rounded-lg border border-gray-200 bg-white shadow-md">
-					<div className="flex flex-col gap-2 p-6">
-						<h2 className="text-xl font-bold">{config.playerLinkLabel}</h2>
-						<KmQrCode data={playerLink} size={200} interactive={false} />
-
-						<a
-							href={playerLink}
-							target="_blank"
-							rel="noreferrer"
-							className="break-all text-blue-600 underline hover:text-blue-700"
-						>
-							{config.playerLinkLabel}
-						</a>
+			<div className="relative flex h-[calc(100vh-150px)] w-full flex-col">
+				{/* QR Code Overlay (Top Right) */}
+				<div className="bg-game-surface absolute top-0 right-0 z-50 flex flex-col items-center gap-2 rounded-bl-2xl border-b border-l border-white/10 p-4 shadow-xl">
+					<div className="rounded-lg bg-white p-2">
+						<KmQrCode data={playerLink} size={100} interactive={false} />
 					</div>
+					<div className="text-game-text text-xs font-bold">Join Game</div>
 				</div>
 
-				<div className="grid grid-cols-1 gap-6">
-					<div className="rounded-lg border border-gray-200 bg-white p-6 shadow-md">
-						<h2 className="mb-4 text-xl font-bold">Players</h2>
-						<div className="flex flex-wrap gap-2">
-							{Object.entries(players).map(([id, player]) => {
-								const isBombHolder = id === bombHolderId;
-								const isEliminated = playerStatus[id] === 'eliminated';
-								const isWinner = id === winnerId;
+				{/* Main Arena (Circle) */}
+				<div className="relative flex flex-1 items-center justify-center">
+					{/* Center Stage: Question or Status */}
+					<div className="absolute z-10 flex h-64 w-96 flex-col items-center justify-center rounded-full p-8 text-center">
+						<AnimatePresence mode="wait">
+							{winnerId ? (
+								<motion.div
+									key="winner"
+									initial={{ scale: 0, opacity: 0 }}
+									animate={{ scale: 1, opacity: 1 }}
+									className="flex flex-col items-center gap-4"
+								>
+									<Crown size={64} className="text-yellow-400" />
+									<div className="text-4xl font-bold text-yellow-400">
+										WINNER
+									</div>
+									<div className="text-2xl text-white">
+										{players[winnerId]?.name}
+									</div>
+								</motion.div>
+							) : started && currentQuestion ? (
+								<motion.div
+									key="question"
+									initial={{ opacity: 0, y: 20 }}
+									animate={{ opacity: 1, y: 0 }}
+									exit={{ opacity: 0, y: -20 }}
+									className="flex flex-col gap-4"
+								>
+									<div className="text-game-text-muted text-sm tracking-widest uppercase">
+										Current Question
+									</div>
+									<div className="text-game-text text-xl leading-relaxed font-bold">
+										{currentQuestion.text}
+									</div>
+								</motion.div>
+							) : (
+								<motion.div
+									key="waiting"
+									initial={{ opacity: 0 }}
+									animate={{ opacity: 1 }}
+									className="text-game-text-muted text-xl italic"
+								>
+									{started ? 'Get Ready...' : 'Waiting for players...'}
+								</motion.div>
+							)}
+						</AnimatePresence>
+					</div>
 
-								let className = 'p-3 rounded border ';
-								if (isWinner)
-									className +=
-										'bg-green-100 border-green-500 text-green-800 font-bold';
-								else if (isBombHolder)
-									className +=
-										'bg-red-500 text-white border-red-600 animate-pulse font-bold';
-								else if (isEliminated)
-									className +=
-										'bg-gray-100 text-gray-400 border-gray-200 line-through';
-								else className += 'bg-white border-gray-200';
+					{/* Players Circle */}
+					<div className="relative h-[600px] w-[600px]">
+						<AnimatePresence>
+							{alivePlayers.map(([id, player], index) => {
+								const total = alivePlayers.length;
+								const angle = (index / total) * 2 * Math.PI - Math.PI / 2; // Start from top
+								const radius = 250; // Circle radius
+								const x = Math.cos(angle) * radius;
+								const y = Math.sin(angle) * radius;
+
+								const isBombHolder = id === bombHolderId;
 
 								return (
-									<div key={id} className={className}>
-										{player.name}
-										{isBombHolder && ' 💣'}
-										{isWinner && ' 👑'}
-									</div>
+									<motion.div
+										key={id}
+										layoutId={`player-${id}`}
+										initial={{ scale: 0, opacity: 0 }}
+										animate={{
+											x,
+											y,
+											scale: 1,
+											opacity: 1,
+											zIndex: isBombHolder ? 20 : 1
+										}}
+										exit={{ scale: 0, opacity: 0 }}
+										transition={{ type: 'spring', stiffness: 60, damping: 15 }}
+										className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+									>
+										<div
+											className={`relative flex h-20 w-20 items-center justify-center rounded-full border-4 shadow-lg transition-colors duration-300 ${
+												isBombHolder
+													? 'border-red-500 bg-red-900/50 shadow-red-500/50'
+													: 'border-white/20 bg-white/10 shadow-black/20'
+											}`}
+										>
+											<div className="text-2xl font-bold text-white">
+												{player.name.charAt(0).toUpperCase()}
+											</div>
+
+											{/* The Bomb */}
+											{isBombHolder && (
+												<motion.div
+													layoutId="bomb"
+													className="absolute -top-4 -right-4 z-30 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]"
+													transition={{
+														type: 'spring',
+														stiffness: 50,
+														damping: 12
+													}}
+												>
+													<motion.div
+														animate={{
+															scale: [1, 1.2, 1],
+															rotate: [0, 5, -5, 0]
+														}}
+														transition={{
+															repeat: Infinity,
+															duration: 0.5
+														}}
+													>
+														<Bomb size={48} fill="currentColor" />
+													</motion.div>
+												</motion.div>
+											)}
+										</div>
+										<div className="bg-game-surface mt-2 rounded px-2 py-1 text-sm font-medium text-white shadow">
+											{player.name}
+										</div>
+									</motion.div>
 								);
 							})}
-							{Object.keys(players).length === 0 && (
-								<div className="text-gray-500 italic">
-									Waiting for players to join...
+						</AnimatePresence>
+					</div>
+				</div>
+
+				{/* Graveyard (Eliminated Players) */}
+				{eliminatedPlayers.length > 0 && (
+					<div className="border-t border-white/10 bg-black/20 p-4 backdrop-blur-sm">
+						<div className="mb-2 flex items-center gap-2 text-sm font-bold tracking-wider text-red-400 uppercase">
+							<Skull size={16} /> Graveyard
+						</div>
+						<div className="flex flex-wrap gap-4">
+							{eliminatedPlayers.map(([id, player]) => (
+								<div
+									key={id}
+									className="flex items-center gap-2 opacity-50 grayscale transition-all hover:opacity-100 hover:grayscale-0"
+								>
+									<div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-xs text-white">
+										{player.name.charAt(0)}
+									</div>
+									<span className="text-sm text-white/70 line-through">
+										{player.name}
+									</span>
 								</div>
-							)}
+							))}
 						</div>
 					</div>
-
-					{started && (
-						<div className="rounded-lg border border-gray-200 bg-white p-6 shadow-md">
-							<h2 className="mb-4 text-xl font-bold">Game Status</h2>
-							{winnerId ? (
-								<div className="text-3xl font-bold text-green-600">
-									Winner: {players[winnerId]?.name}
-								</div>
-							) : (
-								<div className="text-xl">Bomb is ticking...</div>
-							)}
-						</div>
-					)}
-				</div>
-			</HostPresenterLayout.Main>
+				)}
+			</div>
 		</HostPresenterLayout.Root>
 	);
 };

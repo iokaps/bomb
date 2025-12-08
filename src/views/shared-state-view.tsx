@@ -27,20 +27,22 @@ export const SharedStateView: React.FC<React.PropsWithChildren<Props>> = ({
 	return (
 		<div
 			className={cn(
-				'bg-white border border-gray-200 rounded-lg shadow-md w-full',
+				'bg-game-surface w-full rounded-lg border border-white/10 shadow-xl',
 				className
 			)}
 		>
 			<div className="p-6">
-				<div className="prose">
+				<div className="prose prose-invert max-w-none">
 					<Markdown>{config.sharedStateMd}</Markdown>
 				</div>
 
-				<div className="mt-4 grid gap-4">
+				<div className="mt-6 grid gap-4">
 					{started && (
-						<div className="bg-white border border-gray-200 rounded-lg shadow p-6">
-							<div className="text-sm text-gray-500">{config.timeElapsed}</div>
-							<div className="text-3xl font-bold mt-1">
+						<div className="rounded-lg border border-white/10 bg-white/5 p-6">
+							<div className="text-game-text-muted text-sm">
+								{config.timeElapsed}
+							</div>
+							<div className="text-game-text mt-1 text-3xl font-bold">
 								<KmTimeCountdown ms={serverTime - startTimestamp} />
 							</div>
 						</div>
@@ -48,7 +50,7 @@ export const SharedStateView: React.FC<React.PropsWithChildren<Props>> = ({
 
 					{!started && isHost && (
 						<button
-							className="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 font-medium"
+							className="bg-game-primary rounded-lg px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-600"
 							onClick={globalActions.startGame}
 						>
 							{config.startButton}
@@ -57,7 +59,7 @@ export const SharedStateView: React.FC<React.PropsWithChildren<Props>> = ({
 
 					{started && isHost && (
 						<button
-							className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600 font-medium"
+							className="rounded-lg bg-red-600 px-4 py-2 font-medium text-white transition-colors hover:bg-red-700"
 							onClick={globalActions.stopGame}
 						>
 							{config.stopButton}

@@ -18,7 +18,7 @@ export interface GlobalState {
 	bombExplosionTime: number | null;
 	currentQuestion: Question | null;
 	questionQueue: Question[];
-	usedQuestionIds: string[];
+	usedQuestionTexts: string[];
 	playerStatus: Record<string, 'alive' | 'eliminated'>;
 	winnerId: string | null;
 
@@ -38,7 +38,7 @@ const initialState: GlobalState = {
 	bombExplosionTime: null,
 	currentQuestion: null,
 	questionQueue: [],
-	usedQuestionIds: [],
+	usedQuestionTexts: [],
 	playerStatus: {},
 	winnerId: null,
 

@@ -25,6 +25,9 @@ const App: React.FC = () => {
 
 	React.useEffect(() => {
 		console.log('App Player Mounted');
+	}, []);
+
+	React.useEffect(() => {
 		// While game start, force view to 'game', otherwise to 'lobby'
 		if (started) {
 			playerActions.setCurrentView('game');

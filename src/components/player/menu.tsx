@@ -22,11 +22,11 @@ export const PlayerMenu: React.FC = () => {
 			title: config.menuTitle,
 			content: (
 				<div className="h-full w-full p-4">
-					<ul className="w-full flex flex-col gap-2">
+					<ul className="flex w-full flex-col gap-2">
 						<li>
 							<button
 								onClick={() => handleNavigate('lobby')}
-								className="w-full px-4 py-2 text-left rounded-lg hover:bg-slate-100 transition-colors"
+								className="w-full rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/10"
 							>
 								{config.menuGameLobby}
 							</button>
@@ -34,7 +34,7 @@ export const PlayerMenu: React.FC = () => {
 						<li>
 							<button
 								onClick={() => handleNavigate('connections')}
-								className="w-full px-4 py-2 text-left rounded-lg hover:bg-slate-100 transition-colors"
+								className="w-full rounded-lg px-4 py-3 text-left font-medium transition-colors hover:bg-black/5 dark:hover:bg-white/10"
 							>
 								{config.menuConnections}
 							</button>
@@ -48,10 +48,10 @@ export const PlayerMenu: React.FC = () => {
 
 	return (
 		<button
-			className="w-12 h-12 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
+			className="text-game-text flex h-10 w-10 items-center justify-center rounded-full bg-white/10 transition-colors hover:bg-white/20"
 			onClick={handleOpen}
 		>
-			<MenuIcon className="h-6 w-6" />
+			<MenuIcon className="h-5 w-5" />
 			<span className="sr-only">{config.menuAriaLabel}</span>
 		</button>
 	);
