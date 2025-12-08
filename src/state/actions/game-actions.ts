@@ -297,10 +297,22 @@ export const gameActions = {
 		const { currentQuestion, bombHolderId } = globalStore.proxy;
 
 		// Only bomb holder can answer
-		if (kmClient.id !== bombHolderId) return;
+		if (kmClient.id !== bombHolderId) {
+			// Ensure selection is cleared if we are not the bomb holder
+			await kmClient.transact([playerStore], ([state]) => {
+				state.selectedOption = null;
+			});
+			return;
+		}
 
 		// Check if correct question
-		if (!currentQuestion || currentQuestion.id !== questionId) return;
+		if (!currentQuestion || currentQuestion.id !== questionId) {
+			// Ensure selection is cleared if question changed (race condition fix)
+			await kmClient.transact([playerStore], ([state]) => {
+				state.selectedOption = null;
+			});
+			return;
+		}
 
 		const isCorrect = answer === currentQuestion.correctAnswer;
 
@@ -315,17 +327,17 @@ export const gameActions = {
 			});
 		} else {
 			// Incorrect answer: Generate new question for same player
-			await kmClient.transact([playerStore], ([state]) => {
-				state.selectedOption = null; // Reset selection to allow trying again? Or maybe lock it?
-				// Usually in bomb games, incorrect answer means you have to try another question or wait penalty.
-				// Let's generate a new question.
-			});
+			// Keep selection locked while fetching new question to prevent double-clicks
 
 			const nextQuestion = await getNextQuestion();
 
-			await kmClient.transact([globalStore], ([state]) => {
-				state.currentQuestion = nextQuestion;
-			});
+			await kmClient.transact(
+				[globalStore, playerStore],
+				([globalState, playerState]) => {
+					globalState.currentQuestion = nextQuestion;
+					playerState.selectedOption = null;
+				}
+			);
 		}
 	},
 

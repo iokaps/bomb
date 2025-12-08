@@ -19,6 +19,14 @@ export const GameView = () => {
 	const hasBomb = bombHolderId === myId;
 
 	useEffect(() => {
+		// Safety net: Clear selection when question changes
+		// This ensures that if the game moves on, the player isn't stuck with a selection
+		kmClient.transact([playerStore], ([state]) => {
+			state.selectedOption = null;
+		});
+	}, [currentQuestion?.id]);
+
+	useEffect(() => {
 		if (hasBomb) {
 			playAudio(
 				'https://cdn.pixabay.com/audio/2022/03/10/audio_c8c8a73467.mp3',
@@ -96,15 +104,26 @@ export const GameView = () => {
 										key={idx}
 										disabled={!!selectedOption}
 										onClick={() => {
-											playAudio(
-												'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
-												0.5
-											);
+											try {
+												playAudio(
+													'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
+													0.5
+												);
+											} catch (e) {
+												console.warn('Audio play failed', e);
+											}
 											// Set selected option locally first
 											kmClient.transact([playerStore], ([state]) => {
 												state.selectedOption = option;
 											});
-											gameActions.submitAnswer(currentQuestion.id, option);
+											gameActions
+												.submitAnswer(currentQuestion.id, option)
+												.catch(() => {
+													// Reset selection on error
+													kmClient.transact([playerStore], ([state]) => {
+														state.selectedOption = null;
+													});
+												});
 										}}
 										className={cn(
 											'text-game-text rounded-lg border p-4 text-left transition-all',
