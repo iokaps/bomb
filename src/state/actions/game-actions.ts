@@ -152,10 +152,18 @@ async function replenishQueue() {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		try {
+			// Calculate future difficulty based on total questions generated so far
+			// This ensures the queue contains questions of the appropriate difficulty for when they are reached
+			const totalGenerated = usedQuestionTexts.length + questionQueue.length;
+			let targetDifficulty = 1;
+			if (totalGenerated >= 25)
+				targetDifficulty = 3; // Hard after 25
+			else if (totalGenerated >= 10) targetDifficulty = 2; // Medium after 10
+
 			// Request batch of 10 to ensure we stay ahead of gameplay
 			const newQuestions = await generateQuestions(
 				gameSettings.theme,
-				gameSettings.difficulty,
+				targetDifficulty,
 				gameSettings.language,
 				10,
 				[...usedQuestionTexts, ...questionQueue.map((q) => q.text)]
@@ -361,11 +369,6 @@ export const gameActions = {
 				// Reset timer
 				const duration = 30000 + Math.random() * 30000;
 				state.bombExplosionTime = kmClient.serverTimestamp() + duration;
-
-				// Increase difficulty
-				if (state.gameSettings.difficulty < 3) {
-					state.gameSettings.difficulty += 1;
-				}
 			}
 		});
 
