@@ -36,13 +36,15 @@ async function generateQuestions(
 			// This avoids SyntaxErrors if the model returns markdown or malformed JSON
 			const { content } = await kmClient.ai.chat({
 				model: 'gemini-2.5-flash',
-				systemPrompt: `You are a trivia host for a game called "Bomb". Generate ${needed} trivia questions as a JSON array of objects. Each object must have fields: id, text, options (array of 4 strings), correctAnswer. 
+				systemPrompt: `You are a trivia host for a fast-paced live game called "Bomb". Generate ${needed} trivia questions as a JSON array of objects. Each object must have fields: id, text, options (array of 4 strings), correctAnswer. 
 			
 			Guidelines:
 			- Output ONLY valid JSON. No markdown, no code blocks, no explanations.
 			- Difficulty: ${difficultyText}
 			- Theme: ${theme}
 			- Language: ${language}
+			- Style: Concise, short, and punchy. Suitable for reading quickly on a screen. Max 15 words per question.
+			- Options: Keep options short (1-3 words ideally).
 			- Variety: Ensure questions cover different sub-topics within the theme. Avoid repetitive question patterns.
 			- Uniqueness: Do not repeat questions from the provided list.
 			${avoidText}`,

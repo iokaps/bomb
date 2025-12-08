@@ -22,7 +22,6 @@ const App: React.FC = () => {
 	const [theme, setTheme] = useState('General Knowledge');
 	const [language, setLanguage] = useState('English');
 	const [loading, setLoading] = useState(false);
-	const [generating, setGenerating] = useState(false);
 
 	if (kmClient.clientContext.mode !== 'host') {
 		throw new Error('App host rendered in non-host mode');
@@ -116,20 +115,6 @@ const App: React.FC = () => {
 							<div className="flex gap-2">
 								<button
 									onClick={async () => {
-										setGenerating(true);
-										try {
-											await gameActions.prepareGame(theme, language);
-										} finally {
-											setGenerating(false);
-										}
-									}}
-									className="bg-game-accent flex-1 rounded px-4 py-2 font-medium text-white transition-colors hover:bg-purple-600 disabled:opacity-50"
-									disabled={generating || loading}
-								>
-									{generating ? 'Generating...' : 'Generate Questions'}
-								</button>
-								<button
-									onClick={async () => {
 										setLoading(true);
 										try {
 											playAudio(
@@ -142,9 +127,7 @@ const App: React.FC = () => {
 										}
 									}}
 									className="bg-game-primary flex-1 rounded px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
-									disabled={
-										Object.keys(players).length < 2 || loading || generating
-									}
+									disabled={Object.keys(players).length < 2 || loading}
 								>
 									{loading ? 'Starting...' : 'Start Game'}
 									{!loading &&
