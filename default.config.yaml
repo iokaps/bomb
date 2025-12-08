@@ -1,0 +1,39 @@
+# yaml-language-server: $schema=./.kokimoki/schema.json
+
+# Translations
+title: 'Host Starter'
+
+gameLobbyMd: |
+  # Waiting for game to start...
+  The game will start once the host presses the start button.
+
+connectionsMd: |
+  # Connections example
+
+sharedStateMd: |
+  # Shared State example
+
+players: 'Players'
+timeElapsed: 'Time elapsed'
+startButton: 'Start Game'
+stopButton: 'Stop Game'
+
+loading: 'Loading...'
+
+menuTitle: 'Menu'
+menuConnections: 'Connections'
+menuGameLobby: 'Lobby'
+
+playerNameTitle: 'Enter Your Name'
+playerNamePlaceholder: 'Your name...'
+playerNameLabel: 'Name:'
+playerNameButton: 'Continue'
+
+hostLabel: 'Host'
+presenterLabel: 'Presenter'
+
+gameLinksTitle: 'Game Links'
+playerLinkLabel: 'Player Link'
+presenterLinkLabel: 'Presenter Link'
+
+menuAriaLabel: 'Open menu drawer'

@@ -1,0 +1,19 @@
+{
+	"useTabs": true,
+	"singleQuote": true,
+	"trailingComma": "none",
+	"printWidth": 80,
+	"plugins": [
+		"prettier-plugin-organize-imports",
+		"prettier-plugin-tailwindcss"
+	],
+	"overrides": [
+		{
+			"files": "*.md",
+			"options": {
+				"useTabs": false,
+				"tabWidth": 2
+			}
+		}
+	]
+}

@@ -1,0 +1,19 @@
+/* Font imports */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100..900;1,100..900&display=swap');
+
+/* Imports */
+@import 'tailwindcss';
+@import '@kokimoki/shared/styles.css';
+
+@plugin "@tailwindcss/typography";
+
+@theme {
+	--font-family: 'Noto Sans', sans-serif;
+	/* Add theme styling here */
+}
+
+html,
+body {
+	background-color: var(--color-slate-100);
+	font-family: var(--font-family);
+}
