@@ -28,35 +28,55 @@ export const GameView = () => {
 
 	useEffect(() => {
 		if (hasBomb) {
-			playAudio(
-				'https://cdn.pixabay.com/audio/2022/03/10/audio_c8c8a73467.mp3',
-				0.5,
-				true
-			);
+			try {
+				playAudio(
+					'https://cdn.pixabay.com/audio/2022/03/10/audio_c8c8a73467.mp3',
+					0.5,
+					true
+				);
+			} catch (e) {
+				console.warn('Audio play failed', e);
+			}
 		} else {
-			stopAudio();
+			try {
+				stopAudio();
+			} catch (e) {
+				console.warn('Audio stop failed', e);
+			}
 		}
 
 		return () => {
-			stopAudio();
+			try {
+				stopAudio();
+			} catch (e) {
+				console.warn('Audio stop failed', e);
+			}
 		};
 	}, [hasBomb, playAudio, stopAudio]);
 
 	useEffect(() => {
 		if (isEliminated) {
-			playAudio(
-				'https://cdn.pixabay.com/audio/2016/11/23/15/50/explosion-185296_1280.mp3',
-				0.8
-			);
+			try {
+				playAudio(
+					'https://cdn.pixabay.com/audio/2016/11/23/15/50/explosion-185296_1280.mp3',
+					0.8
+				);
+			} catch (e) {
+				console.warn('Audio play failed', e);
+			}
 		}
 	}, [isEliminated, playAudio]);
 
 	useEffect(() => {
 		if (winnerId) {
-			playAudio(
-				'https://cdn.pixabay.com/audio/2021/08/04/audio_12b0c7443c.mp3',
-				0.7
-			);
+			try {
+				playAudio(
+					'https://cdn.pixabay.com/audio/2021/08/04/audio_12b0c7443c.mp3',
+					0.7
+				);
+			} catch (e) {
+				console.warn('Audio play failed', e);
+			}
 		}
 	}, [winnerId, playAudio]);
 

@@ -117,10 +117,14 @@ const App: React.FC = () => {
 									onClick={async () => {
 										setLoading(true);
 										try {
-											playAudio(
-												'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
-												0.5
-											);
+											try {
+												playAudio(
+													'https://cdn.pixabay.com/audio/2022/03/15/audio_18d699d538.mp3',
+													0.5
+												);
+											} catch (e) {
+												console.warn('Audio play failed', e);
+											}
 											await gameActions.startGame(theme, language);
 										} finally {
 											setLoading(false);
