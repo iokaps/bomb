@@ -1,6 +1,7 @@
 import { config } from '@/config';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useGlobalController } from '@/hooks/useGlobalController';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import { generateLink } from '@/kit/generate-link';
 import { HostPresenterLayout } from '@/layouts/host-presenter';
 import { kmClient } from '@/services/km-client';
@@ -31,7 +32,7 @@ const HelpButton = () => {
 					title: config.helpButtonLabel,
 					description: 'Game instructions and rules',
 					content: (
-						<div className="prose prose-invert max-w-none">
+						<div className="prose prose-invert max-h-[60vh] max-w-none overflow-y-auto pr-2">
 							<Markdown>{config.howToPlayMd}</Markdown>
 						</div>
 					),
@@ -46,13 +47,55 @@ const HelpButton = () => {
 	);
 };
 
+const QueueStatus = () => {
+	const { questionQueue } = useSnapshot(globalStore.proxy);
+	if (questionQueue.length === 0) return null;
+	return (
+		<div className="text-sm font-medium text-green-400">
+			{questionQueue.length} questions ready!
+		</div>
+	);
+};
+
+const FuseTimer = () => {
+	const { started, bombExplosionTime } = useSnapshot(globalStore.proxy);
+	const [timeLeft, setTimeLeft] = useState<number | null>(null);
+
+	React.useEffect(() => {
+		if (!started || !bombExplosionTime) {
+			setTimeLeft(null);
+			return;
+		}
+
+		const interval = setInterval(() => {
+			const now = kmClient.serverTimestamp();
+			const diff = Math.ceil((bombExplosionTime - now) / 1000);
+			setTimeLeft(diff);
+		}, 200);
+
+		return () => clearInterval(interval);
+	}, [started, bombExplosionTime]);
+
+	if (timeLeft === null) return null;
+
+	return (
+		<div
+			className={`font-mono text-2xl font-bold ${timeLeft <= 5 ? 'animate-pulse text-red-600' : 'text-game-text'}`}
+		>
+			{timeLeft > 0 ? `Explosion in: ${timeLeft}s` : `OVERDUE: ${timeLeft}s`}
+		</div>
+	);
+};
+
 const App: React.FC = () => {
 	useGlobalController();
+	useWakeLock();
 	const { title } = config;
 	useDocumentTitle(title);
 
-	const { started, players, bombHolderId, winnerId, questionQueue } =
-		useSnapshot(globalStore.proxy);
+	const { started, players, bombHolderId, winnerId } = useSnapshot(
+		globalStore.proxy
+	);
 	const [theme, setTheme] = useState('General Knowledge');
 	const [language, setLanguage] = useState('English');
 	const [gameMode, setGameMode] = useState<GameMode>('accelerating');
@@ -187,11 +230,7 @@ const App: React.FC = () => {
 											' (Need 2+ players)'}
 									</button>
 								</div>
-								{questionQueue.length > 0 && (
-									<div className="text-sm font-medium text-green-400">
-										{questionQueue.length} questions ready!
-									</div>
-								)}
+								<QueueStatus />
 								{winnerId && (
 									<div className="text-xl font-bold text-green-400">
 										Winner: {players[winnerId]?.name || winnerId}
@@ -201,6 +240,7 @@ const App: React.FC = () => {
 						) : (
 							<div className="flex flex-col gap-4">
 								<div className="text-game-text text-lg">Game in progress!</div>
+								<FuseTimer />
 								<div className="text-game-text">
 									Bomb Holder:{' '}
 									<strong className="animate-pulse text-red-500">

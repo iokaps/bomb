@@ -1,4 +1,5 @@
 import { kmClient } from '@/services/km-client';
+import { snapshot } from 'valtio';
 import {
 	globalStore,
 	type GameMode,
@@ -12,7 +13,7 @@ async function generateQuestions(
 	difficulty: number,
 	language: string,
 	count: number = 1,
-	avoidQuestions: string[] = []
+	avoidQuestions: Set<string> = new Set()
 ): Promise<Question[]> {
 	const difficultyText =
 		difficulty === 1 ? 'easy' : difficulty === 2 ? 'medium' : 'hard';
@@ -22,11 +23,14 @@ async function generateQuestions(
 
 	while (collectedQuestions.length < count && attempts < maxAttempts) {
 		attempts++;
+		console.log(`generateQuestions: attempt ${attempts}/${maxAttempts}`);
 		const needed = count - collectedQuestions.length;
 
 		// Take the last 50 questions to give the AI context on what to avoid
+		// Convert Set to array for slicing, but only if needed
+		const avoidArray = Array.from(avoidQuestions);
 		const currentAvoidList = [
-			...avoidQuestions,
+			...avoidArray,
 			...collectedQuestions.map((q) => q.text)
 		];
 		const recentQuestions = currentAvoidList.slice(-50);
@@ -53,6 +57,7 @@ async function generateQuestions(
 			- Variety: Ensure questions cover different sub-topics within the theme. Avoid repetitive question patterns.
 			- Uniqueness: Do not repeat questions from the provided list.
 			- Strict Mode: Return raw JSON only. Do not include any conversational text.
+			- Format: [{"id": "1", "text": "Question?", "options": ["A", "B", "C", "D"], "correctAnswer": "A"}]
 			${avoidText}`,
 				userPrompt: `Generate ${needed} unique and diverse questions about "${theme}" in ${language}.`,
 				temperature: 0.9 + (attempts - 1) * 0.1
@@ -75,6 +80,9 @@ async function generateQuestions(
 				jsonString = jsonString.replace(/^```\s*/, '').replace(/\s*```$/, '');
 			}
 
+			// Attempt to fix common JSON errors (trailing commas)
+			jsonString = jsonString.replace(/,\s*]/g, ']').replace(/,\s*}/g, '}');
+
 			const questions = JSON.parse(jsonString) as Question[];
 
 			if (questions && Array.isArray(questions) && questions.length > 0) {
@@ -90,7 +98,7 @@ async function generateQuestions(
 
 				// Client-side filtering to ensure no duplicates from the full history
 				const uniqueNew = validQuestions.filter(
-					(q) => !currentAvoidList.includes(q.text)
+					(q) => !avoidQuestions.has(q.text)
 				);
 
 				collectedQuestions.push(...uniqueNew);
@@ -182,7 +190,8 @@ let isReplenishing = false;
 async function replenishQueue() {
 	if (isReplenishing) return;
 
-	const state = globalStore.proxy;
+	// Use snapshot to avoid proxy overhead during read operations
+	const state = snapshot(globalStore.proxy);
 	const {
 		gameSettings,
 		usedQuestionTexts,
@@ -201,6 +210,15 @@ async function replenishQueue() {
 
 	// Don't replenish if game is not started
 	if (!started) return;
+
+	// Don't replenish if explosion is imminent (within 10s) or overdue
+	// This prevents locking the store when we need to process an explosion
+	const { bombExplosionTime } = state;
+	const now = kmClient.serverTimestamp();
+	if (bombExplosionTime && bombExplosionTime - now < 10000) {
+		console.log('Skipping replenishQueue: Explosion imminent');
+		return;
+	}
 
 	// Keep 20 questions in reserve
 	if (questionQueue.length < 20) {
@@ -221,13 +239,39 @@ async function replenishQueue() {
 				targetDifficulty = 3; // Hard after 25
 			else if (totalGenerated >= 10) targetDifficulty = 2; // Medium after 10
 
+			// Create Set for efficient lookup
+			const avoidSet = new Set([
+				...usedQuestionTexts,
+				...questionQueue.map((q) => q.text)
+			]);
+
 			// Request batch of 10 to ensure we stay ahead of gameplay
+			// Run this WITHOUT awaiting it to block the main thread? No, we need to await it.
+			// But we can wrap it in a timeout to ensure it doesn't hang forever?
+			// generateQuestions already has a timeout.
+
+			// Double check time before starting heavy AI work
+			const currentNow = kmClient.serverTimestamp();
+			if (
+				globalStore.proxy.bombExplosionTime &&
+				globalStore.proxy.bombExplosionTime - currentNow < 10000
+			) {
+				console.log('Skipping replenishQueue (pre-AI): Explosion imminent');
+				return;
+			}
+
+			console.log('replenishQueue: calling generateQuestions');
+			// Reduce batch size to 3 to prevent transaction timeouts/locks
 			const newQuestions = await generateQuestions(
 				gameSettings.theme,
 				targetDifficulty,
 				gameSettings.language,
-				10,
-				[...usedQuestionTexts, ...questionQueue.map((q) => q.text)]
+				3,
+				avoidSet
+			);
+			console.log(
+				'replenishQueue: generateQuestions returned',
+				newQuestions.length
 			);
 
 			console.log(`Generated ${newQuestions.length} new questions`);
@@ -235,21 +279,49 @@ async function replenishQueue() {
 			// Check if game is still started before updating
 			if (!globalStore.proxy.started) return;
 
-			await kmClient.transact([globalStore], ([s]) => {
-				s.questionQueue.push(...newQuestions);
-				newQuestions.forEach((q) => s.usedQuestionTexts.push(q.text));
+			// Triple check time before transaction
+			const finalNow = kmClient.serverTimestamp();
+			if (
+				globalStore.proxy.bombExplosionTime &&
+				globalStore.proxy.bombExplosionTime - finalNow < 5000
+			) {
+				console.log(
+					'Skipping replenishQueue (pre-transact): Explosion imminent'
+				);
+				return;
+			}
+
+			// Ensure data is clean and serializable
+			const cleanQuestions = JSON.parse(JSON.stringify(newQuestions));
+
+			console.log('replenishQueue: starting transaction');
+
+			// Wrap transaction in a timeout to prevent hanging the SDK queue
+			const transactionPromise = kmClient.transact([globalStore], ([s]) => {
+				console.log('replenishQueue: inside transaction callback - start');
+				cleanQuestions.forEach((q: Question) => s.questionQueue.push(q));
+				console.log('replenishQueue: pushed to queue');
+
+				cleanQuestions.forEach((q: Question) =>
+					s.usedQuestionTexts.push(q.text)
+				);
+				console.log('replenishQueue: pushed to used texts');
 			});
+
+			const timeoutPromise = new Promise((_, reject) =>
+				setTimeout(
+					() => reject(new Error('replenishQueue transaction timed out')),
+					3000
+				)
+			);
+
+			await Promise.race([transactionPromise, timeoutPromise]);
+			console.log('replenishQueue: transaction committed');
 		} catch (err) {
 			console.error('Background question fetch failed', err);
 		} finally {
 			isReplenishing = false;
-			// If we still need more questions, try again
-			const currentSize = globalStore.proxy.questionQueue.length;
-			if (currentSize < 20) {
-				// If critically low, retry quickly. Otherwise wait a bit.
-				const delay = currentSize < 5 ? 500 : 2000;
-				setTimeout(replenishQueue, delay);
-			}
+			// Removed recursive setTimeout to avoid overlapping with interval check
 		}
 	}
 }
@@ -272,12 +344,13 @@ async function getNextQuestion(): Promise<Question> {
 	}
 
 	// Fallback if queue is empty (e.g. start of game or network lag)
+	const avoidSet = new Set(state.usedQuestionTexts);
 	const questions = await generateQuestions(
 		state.gameSettings.theme,
 		state.gameSettings.difficulty,
 		state.gameSettings.language,
 		1,
-		state.usedQuestionTexts
+		avoidSet
 	);
 	const q = questions[0];
 
@@ -492,80 +565,91 @@ export const gameActions = {
 		}
 	},
 	async handleExplosion() {
-		await kmClient.transact([globalStore], ([state]) => {
-			const victimId = state.bombHolderId;
-			const now = kmClient.serverTimestamp();
-
-			if (victimId) {
-				state.playerStatus[victimId] = 'eliminated';
-				state.eliminationOrder.push(victimId);
-
-				// Finalize stats for victim
-				if (
-					state.playerStats[victimId] &&
-					state.playerStats[victimId].bombHoldStart
-				) {
-					state.playerStats[victimId].bombHoldTime +=
-						now - state.playerStats[victimId].bombHoldStart;
-					state.playerStats[victimId].bombHoldStart = null;
-				}
-			}
-
-			const alivePlayers = Object.entries(state.playerStatus)
-				.filter(([, status]) => status === 'alive')
-				.map(([id]) => id);
-
-			if (alivePlayers.length <= 1) {
-				// Game Over
-				state.started = false;
-				state.winnerId = alivePlayers[0] || null;
-
-				// Add winner to elimination order (last one standing)
-				if (state.winnerId) {
-					state.eliminationOrder.push(state.winnerId);
-				}
-
-				state.bombHolderId = null;
-				state.bombExplosionTime = null;
-			} else {
-				// Continue Game
-				// Pick new holder from alive players
-				const randomIndex = Math.floor(Math.random() * alivePlayers.length);
-				state.bombHolderId = alivePlayers[randomIndex];
-
-				// Start tracking for new holder
-				if (state.playerStats[state.bombHolderId]) {
-					state.playerStats[state.bombHolderId].bombHoldStart = now;
-				}
-
-				// Reset timer based on mode
-				switch (state.gameMode) {
-					case 'classic':
-						state.currentFuseDuration = 45000 + Math.random() * 45000;
-						break;
-					case 'shot-clock':
-						state.currentFuseDuration = 15000;
-						break;
-					case 'chaos':
-						state.currentFuseDuration = 5000 + Math.random() * 20000;
-						break;
-					case 'accelerating':
-					default:
-						state.currentFuseDuration = 30000;
-						break;
-				}
-
-				state.bombExplosionTime = now + state.currentFuseDuration;
-			}
-		});
-
-		// If game continues, generate new question
-		if (globalStore.proxy.started) {
-			const nextQuestion = await getNextQuestion();
-
+		console.log('handleExplosion: start');
+		try {
+			console.log('handleExplosion: starting transaction 1 (elimination)');
 			await kmClient.transact([globalStore], ([state]) => {
-				state.currentQuestion = nextQuestion;
+				const victimId = state.bombHolderId;
+				const now = kmClient.serverTimestamp();
+
+				if (victimId) {
+					state.playerStatus[victimId] = 'eliminated';
+					state.eliminationOrder.push(victimId);
+
+					// Finalize stats for victim
+					if (
+						state.playerStats[victimId] &&
+						state.playerStats[victimId].bombHoldStart
+					) {
+						state.playerStats[victimId].bombHoldTime +=
+							now - state.playerStats[victimId].bombHoldStart;
+						state.playerStats[victimId].bombHoldStart = null;
+					}
+				}
+
+				const alivePlayers = Object.entries(state.playerStatus)
+					.filter(([, status]) => status === 'alive')
+					.map(([id]) => id);
+
+				if (alivePlayers.length <= 1) {
+					// Game Over
+					state.started = false;
+					state.winnerId = alivePlayers[0] || null;
+
+					// Add winner to elimination order (last one standing)
+					if (state.winnerId) {
+						state.eliminationOrder.push(state.winnerId);
+					}
+
+					state.bombHolderId = null;
+					state.bombExplosionTime = null;
+				} else {
+					// Continue Game
+					// Pick new holder from alive players
+					const randomIndex = Math.floor(Math.random() * alivePlayers.length);
+					state.bombHolderId = alivePlayers[randomIndex];
+
+					// Start tracking for new holder
+					if (state.playerStats[state.bombHolderId]) {
+						state.playerStats[state.bombHolderId].bombHoldStart = now;
+					}
+
+					// Reset timer based on mode
+					switch (state.gameMode) {
+						case 'classic':
+							state.currentFuseDuration = 45000 + Math.random() * 45000;
+							break;
+						case 'shot-clock':
+							state.currentFuseDuration = 15000;
+							break;
+						case 'chaos':
+							state.currentFuseDuration = 5000 + Math.random() * 20000;
+							break;
+						case 'accelerating':
+						default:
+							state.currentFuseDuration = 30000;
+							break;
+					}
+
+					state.bombExplosionTime = now + state.currentFuseDuration;
+				}
 			});
+			console.log('handleExplosion: transaction 1 committed');
+
+			// If game continues, generate new question
+			if (globalStore.proxy.started) {
+				console.log('handleExplosion: getting next question');
+				const nextQuestion = await getNextQuestion();
+				console.log('handleExplosion: got next question', nextQuestion?.id);
+
+				await kmClient.transact([globalStore], ([state]) => {
+					state.currentQuestion = nextQuestion;
+				});
+				console.log('handleExplosion: transaction 2 committed (new question)');
+			}
+		} catch (err) {
+			console.error('Error in handleExplosion:', err);
+			throw err;
 		}
 	},
 

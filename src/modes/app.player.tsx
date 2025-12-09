@@ -2,7 +2,7 @@ import { PlayerMenu } from '@/components/player/menu';
 import { NameLabel } from '@/components/player/name-label';
 import { config } from '@/config';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import { useGlobalController } from '@/hooks/useGlobalController';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import { PlayerLayout } from '@/layouts/player';
 import { playerActions } from '@/state/actions/player-actions';
 import { globalStore } from '@/state/stores/global-store';
@@ -14,58 +14,22 @@ import { KmModalProvider } from '@kokimoki/shared';
 import * as React from 'react';
 import { useSnapshot } from 'valtio';
 
-function useWakeLock() {
-	React.useEffect(() => {
-		let wakeLock: any = null;
-
-		const requestWakeLock = async () => {
-			try {
-				if ('wakeLock' in navigator) {
-					wakeLock = await (navigator as any).wakeLock.request('screen');
-				}
-			} catch (err) {
-				// Ignore errors (e.g. if battery is low or not supported)
-				console.debug('Wake Lock error:', err);
-			}
-		};
-
-		requestWakeLock();
-
-		const handleVisibilityChange = () => {
-			if (document.visibilityState === 'visible') {
-				requestWakeLock();
-			}
-		};
-
-		document.addEventListener('visibilitychange', handleVisibilityChange);
-
-		return () => {
-			document.removeEventListener('visibilitychange', handleVisibilityChange);
-			if (wakeLock) {
-				wakeLock.release();
-				wakeLock = null;
-			}
-		};
-	}, []);
-}
-
 const App: React.FC = () => {
 	const { title } = config;
 	const { name, currentView } = useSnapshot(playerStore.proxy);
-	const { started } = useSnapshot(globalStore.proxy);
+	const { started, winnerId } = useSnapshot(globalStore.proxy);
 
-	useGlobalController();
 	useDocumentTitle(title);
 	useWakeLock();
 
 	React.useEffect(() => {
 		// While game start, force view to 'game', otherwise to 'lobby'
-		if (started) {
+		if (started || winnerId) {
 			playerActions.setCurrentView('game');
 		} else {
 			playerActions.setCurrentView('lobby');
 		}
-	}, [started]);
+	}, [started, winnerId]);
 
 	if (!name) {
 		return (

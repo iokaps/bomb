@@ -1,6 +1,6 @@
 import { config } from '@/config';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
-import { useGlobalController } from '@/hooks/useGlobalController';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import { generateLink } from '@/kit/generate-link';
 import { HostPresenterLayout } from '@/layouts/host-presenter';
 import { kmClient } from '@/services/km-client';
@@ -24,7 +24,7 @@ const App: React.FC = () => {
 		eliminationOrder
 	} = useSnapshot(globalStore.proxy);
 
-	useGlobalController();
+	useWakeLock();
 	useDocumentTitle(title);
 
 	if (kmClient.clientContext.mode !== 'presenter') {
