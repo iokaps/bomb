@@ -237,15 +237,23 @@ const App: React.FC = () => {
 											className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
 										>
 											<div
-												className={`relative flex h-20 w-20 items-center justify-center rounded-full border-4 shadow-lg transition-colors duration-300 ${
+												className={`relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 shadow-lg transition-colors duration-300 ${
 													isBombHolder
 														? 'border-red-500 bg-red-900/50 shadow-red-500/50'
 														: 'border-white/20 bg-white/10 shadow-black/20'
 												}`}
 											>
-												<div className="text-2xl font-bold text-white">
-													{player.name.charAt(0).toUpperCase()}
-												</div>
+												{player.photoUrl ? (
+													<img
+														src={player.photoUrl}
+														alt={player.name}
+														className="h-full w-full object-cover"
+													/>
+												) : (
+													<div className="text-2xl font-bold text-white">
+														{player.name.charAt(0).toUpperCase()}
+													</div>
+												)}
 
 												{/* The Bomb */}
 												{isBombHolder && (

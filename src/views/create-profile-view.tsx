@@ -5,12 +5,16 @@ import * as React from 'react';
 
 interface Props {
 	className?: string;
+	onNameSet?: () => void;
 }
 
 /**
  * View to create a player profile by entering a name
  */
-export const CreateProfileView: React.FC<Props> = ({ className }) => {
+export const CreateProfileView: React.FC<Props> = ({
+	className,
+	onNameSet
+}) => {
 	const [name, setName] = React.useState('');
 	const [isLoading, setIsLoading] = React.useState(false);
 
@@ -23,6 +27,9 @@ export const CreateProfileView: React.FC<Props> = ({ className }) => {
 		setIsLoading(true);
 		try {
 			await playerActions.setPlayerName(trimmedName);
+			if (onNameSet) {
+				onNameSet();
+			}
 		} finally {
 			setIsLoading(false);
 		}

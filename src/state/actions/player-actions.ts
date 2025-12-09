@@ -17,5 +17,17 @@ export const playerActions = {
 				globalState.players[kmClient.id] = { name };
 			}
 		);
+	},
+
+	async setPlayerPhoto(photoUrl: string) {
+		await kmClient.transact(
+			[playerStore, globalStore],
+			([playerState, globalState]) => {
+				playerState.hasPhoto = true;
+				if (globalState.players[kmClient.id]) {
+					globalState.players[kmClient.id].photoUrl = photoUrl;
+				}
+			}
+		);
 	}
 };

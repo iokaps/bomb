@@ -7,6 +7,7 @@ import { PlayerLayout } from '@/layouts/player';
 import { playerActions } from '@/state/actions/player-actions';
 import { globalStore } from '@/state/stores/global-store';
 import { playerStore } from '@/state/stores/player-store';
+import { CameraCaptureView } from '@/views/camera-capture-view';
 import { CreateProfileView } from '@/views/create-profile-view';
 import { GameLobbyView } from '@/views/game-lobby-view';
 import { GameView } from '@/views/game-view';
@@ -16,8 +17,9 @@ import { useSnapshot } from 'valtio';
 
 const App: React.FC = () => {
 	const { title } = config;
-	const { name, currentView } = useSnapshot(playerStore.proxy);
+	const { name, currentView, hasPhoto } = useSnapshot(playerStore.proxy);
 	const { started, winnerId } = useSnapshot(globalStore.proxy);
+	const [showCamera, setShowCamera] = React.useState(false);
 
 	useDocumentTitle(title);
 	useWakeLock();
@@ -31,12 +33,16 @@ const App: React.FC = () => {
 		}
 	}, [started, winnerId]);
 
-	if (!name) {
+	if (!name || (name && !hasPhoto && showCamera)) {
 		return (
 			<PlayerLayout.Root>
 				<PlayerLayout.Header />
 				<PlayerLayout.Main>
-					<CreateProfileView />
+					{!showCamera ? (
+						<CreateProfileView onNameSet={() => setShowCamera(true)} />
+					) : (
+						<CameraCaptureView onComplete={() => setShowCamera(false)} />
+					)}
 				</PlayerLayout.Main>
 			</PlayerLayout.Root>
 		);

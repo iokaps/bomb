@@ -13,7 +13,7 @@ export interface GlobalState {
 	controllerConnectionId: string;
 	started: boolean;
 	startTimestamp: number;
-	players: Record<string, { name: string }>;
+	players: Record<string, { name: string; photoUrl?: string }>;
 	gameMode: GameMode;
 
 	// Bomb Game State
