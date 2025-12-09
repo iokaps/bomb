@@ -10,6 +10,12 @@ export const schema = z.object({
 			'# Waiting for game to start...\nThe game will start once the host presses the start button.'
 		),
 
+	howToPlayMd: z
+		.string()
+		.default(
+			'# How to Play\n\n1. Players join using the QR code.\n2. The host starts the game.\n3. Players answer questions to pass the bomb.\n4. The last player standing wins!'
+		),
+
 	players: z.string().default('Players'),
 	timeElapsed: z.string().default('Time elapsed'),
 	startButton: z.string().default('Start Game'),
@@ -26,6 +32,7 @@ export const schema = z.object({
 
 	hostLabel: z.string().default('Host'),
 	presenterLabel: z.string().default('Presenter'),
+	helpButtonLabel: z.string().default('How to Play'),
 
 	gameLinksTitle: z.string().default('Game Links'),
 	playerLinkLabel: z.string().default('Player Link'),

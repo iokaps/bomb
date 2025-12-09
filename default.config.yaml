@@ -7,6 +7,19 @@ gameLobbyMd: |
   # Waiting for game to start...
   The game will start once the host presses the start button.
 
+howToPlayMd: |
+  # How to Play Bomb
+
+  **Objective:** Don't be holding the bomb when it explodes!
+
+  1. **Join:** Players scan the QR code to join the game.
+  2. **Start:** The Host selects a theme and starts the game.
+  3. **The Bomb:** One player starts with the bomb.
+  4. **Pass It:** To pass the bomb, you must answer a trivia question correctly.
+  5. **Explosion:** The bomb explodes after a random time (30-60s). The holder is eliminated.
+  6. **Accelerating Fuse:** With every pass, the fuse gets shorter!
+  7. **Winner:** The last player alive wins!
+
 players: 'Players'
 timeElapsed: 'Time elapsed'
 startButton: 'Start Game'
@@ -24,6 +37,7 @@ playerNameButton: 'Continue'
 
 hostLabel: 'Host'
 presenterLabel: 'Presenter'
+helpButtonLabel: 'How to Play'
 
 gameLinksTitle: 'Game Links'
 playerLinkLabel: 'Player Link'
