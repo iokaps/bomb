@@ -16,11 +16,25 @@ export interface GlobalState {
 	// Bomb Game State
 	bombHolderId: string | null;
 	bombExplosionTime: number | null;
+	currentFuseDuration: number;
 	currentQuestion: Question | null;
 	questionQueue: Question[];
 	usedQuestionTexts: string[];
 	playerStatus: Record<string, 'alive' | 'eliminated'>;
 	winnerId: string | null;
+
+	// Stats
+	playerStats: Record<
+		string,
+		{
+			questionsAnswered: number;
+			bombHoldTime: number; // in ms
+			bombHoldStart: number | null; // timestamp when they got the bomb
+			passes: number;
+			closeCalls: number; // passes with < 5s left
+		}
+	>;
+	eliminationOrder: string[]; // IDs of players in order of elimination
 
 	gameSettings: {
 		theme: string;
@@ -36,11 +50,15 @@ const initialState: GlobalState = {
 	players: {},
 	bombHolderId: null,
 	bombExplosionTime: null,
+	currentFuseDuration: 30000,
 	currentQuestion: null,
 	questionQueue: [],
 	usedQuestionTexts: [],
 	playerStatus: {},
 	winnerId: null,
+
+	playerStats: {},
+	eliminationOrder: [],
 
 	gameSettings: {
 		theme: 'General Knowledge',

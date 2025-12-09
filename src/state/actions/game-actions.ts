@@ -106,13 +106,70 @@ async function generateQuestions(
 	}
 
 	console.warn('All generation attempts failed, using fallback');
+
+	const fallbackPool = [
+		{
+			text: 'What is the capital of France?',
+			options: ['London', 'Berlin', 'Paris', 'Madrid'],
+			correctAnswer: 'Paris'
+		},
+		{
+			text: 'Which planet is known as the Red Planet?',
+			options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
+			correctAnswer: 'Mars'
+		},
+		{
+			text: 'What is 2 + 2?',
+			options: ['3', '4', '5', '6'],
+			correctAnswer: '4'
+		},
+		{
+			text: 'Who painted the Mona Lisa?',
+			options: ['Van Gogh', 'Da Vinci', 'Picasso', 'Rembrandt'],
+			correctAnswer: 'Da Vinci'
+		},
+		{
+			text: 'What is the largest ocean?',
+			options: ['Atlantic', 'Indian', 'Arctic', 'Pacific'],
+			correctAnswer: 'Pacific'
+		},
+		{
+			text: 'Which element has the symbol O?',
+			options: ['Gold', 'Oxygen', 'Silver', 'Iron'],
+			correctAnswer: 'Oxygen'
+		},
+		{
+			text: 'How many continents are there?',
+			options: ['5', '6', '7', '8'],
+			correctAnswer: '7'
+		},
+		{
+			text: 'What is the speed of light?',
+			options: ['Fast', 'Very Fast', 'Super Fast', '299,792 km/s'],
+			correctAnswer: '299,792 km/s'
+		},
+		{
+			text: 'Which animal is the king of the jungle?',
+			options: ['Tiger', 'Lion', 'Elephant', 'Giraffe'],
+			correctAnswer: 'Lion'
+		},
+		{
+			text: 'What is the boiling point of water?',
+			options: ['90°C', '100°C', '110°C', '120°C'],
+			correctAnswer: '100°C'
+		}
+	];
+
 	// Fallback questions
-	return Array.from({ length: count }).map((_, i) => ({
-		id: 'fallback-' + Date.now() + '-' + i,
-		text: 'What is the capital of France?',
-		options: ['London', 'Berlin', 'Paris', 'Madrid'],
-		correctAnswer: 'Paris'
-	}));
+	return Array.from({ length: count }).map((_, i) => {
+		const fallback = fallbackPool[(Date.now() + i) % fallbackPool.length];
+		return {
+			id: 'fallback-' + Date.now() + '-' + i,
+			text: fallback.text,
+			options: fallback.options,
+			correctAnswer: fallback.correctAnswer
+		};
+	});
 }
 
 let isReplenishing = false;
@@ -249,19 +306,35 @@ export const gameActions = {
 			// Initialize all players as alive
 			const playerIds = Object.keys(state.players);
 			state.playerStatus = {};
+			state.playerStats = {};
+			state.eliminationOrder = [];
+
 			playerIds.forEach((id) => {
 				state.playerStatus[id] = 'alive';
+				state.playerStats[id] = {
+					questionsAnswered: 0,
+					bombHoldTime: 0,
+					bombHoldStart: null,
+					passes: 0,
+					closeCalls: 0
+				};
 			});
 
 			// Pick random bomb holder
 			if (playerIds.length > 0) {
 				const randomIndex = Math.floor(Math.random() * playerIds.length);
 				state.bombHolderId = playerIds[randomIndex];
+				// Start tracking hold time
+				if (state.playerStats[state.bombHolderId]) {
+					state.playerStats[state.bombHolderId].bombHoldStart =
+						kmClient.serverTimestamp();
+				}
 			}
 
-			// Set explosion time (e.g., 30-60 seconds from now)
-			const duration = 30000 + Math.random() * 30000;
-			state.bombExplosionTime = kmClient.serverTimestamp() + duration;
+			// Set explosion time (starts at 30s)
+			state.currentFuseDuration = 30000;
+			state.bombExplosionTime =
+				kmClient.serverTimestamp() + state.currentFuseDuration;
 		});
 
 		// 2. Generate first question immediately
@@ -280,6 +353,26 @@ export const gameActions = {
 		const nextQ = await getNextQuestion();
 
 		await kmClient.transact([globalStore], ([state]) => {
+			const currentHolderId = state.bombHolderId;
+			const now = kmClient.serverTimestamp();
+
+			// Update stats for current holder
+			if (currentHolderId && state.playerStats[currentHolderId]) {
+				const stats = state.playerStats[currentHolderId];
+				stats.questionsAnswered += 1;
+				stats.passes += 1;
+
+				if (stats.bombHoldStart) {
+					stats.bombHoldTime += now - stats.bombHoldStart;
+					stats.bombHoldStart = null;
+				}
+
+				// Check for close call (< 5 seconds left)
+				if (state.bombExplosionTime && state.bombExplosionTime - now < 5000) {
+					stats.closeCalls += 1;
+				}
+			}
+
 			const alivePlayers = Object.entries(state.playerStatus)
 				.filter(
 					([id, status]) => status === 'alive' && id !== state.bombHolderId
@@ -289,6 +382,18 @@ export const gameActions = {
 			if (alivePlayers.length > 0) {
 				const randomIndex = Math.floor(Math.random() * alivePlayers.length);
 				state.bombHolderId = alivePlayers[randomIndex];
+
+				// Start tracking for new holder
+				if (state.playerStats[state.bombHolderId]) {
+					state.playerStats[state.bombHolderId].bombHoldStart = now;
+				}
+
+				// Accelerating Fuse: Decrease duration by 2s (min 5s) and reset timer
+				state.currentFuseDuration = Math.max(
+					5000,
+					state.currentFuseDuration - 2000
+				);
+				state.bombExplosionTime = now + state.currentFuseDuration;
 			}
 
 			state.currentQuestion = nextQ;
@@ -346,8 +451,21 @@ export const gameActions = {
 	async handleExplosion() {
 		await kmClient.transact([globalStore], ([state]) => {
 			const victimId = state.bombHolderId;
+			const now = kmClient.serverTimestamp();
+
 			if (victimId) {
 				state.playerStatus[victimId] = 'eliminated';
+				state.eliminationOrder.push(victimId);
+
+				// Finalize stats for victim
+				if (
+					state.playerStats[victimId] &&
+					state.playerStats[victimId].bombHoldStart
+				) {
+					state.playerStats[victimId].bombHoldTime +=
+						now - state.playerStats[victimId].bombHoldStart;
+					state.playerStats[victimId].bombHoldStart = null;
+				}
 			}
 
 			const alivePlayers = Object.entries(state.playerStatus)
@@ -358,6 +476,12 @@ export const gameActions = {
 				// Game Over
 				state.started = false;
 				state.winnerId = alivePlayers[0] || null;
+
+				// Add winner to elimination order (last one standing)
+				if (state.winnerId) {
+					state.eliminationOrder.push(state.winnerId);
+				}
+
 				state.bombHolderId = null;
 				state.bombExplosionTime = null;
 			} else {
@@ -366,9 +490,15 @@ export const gameActions = {
 				const randomIndex = Math.floor(Math.random() * alivePlayers.length);
 				state.bombHolderId = alivePlayers[randomIndex];
 
+				// Start tracking for new holder
+				if (state.playerStats[state.bombHolderId]) {
+					state.playerStats[state.bombHolderId].bombHoldStart = now;
+				}
+
 				// Reset timer
-				const duration = 30000 + Math.random() * 30000;
-				state.bombExplosionTime = kmClient.serverTimestamp() + duration;
+				state.currentFuseDuration = 30000;
+				state.bombExplosionTime =
+					kmClient.serverTimestamp() + state.currentFuseDuration;
 			}
 		});
 

@@ -6,7 +6,7 @@ import { HostPresenterLayout } from '@/layouts/host-presenter';
 import { kmClient } from '@/services/km-client';
 import { globalStore } from '@/state/stores/global-store';
 import { KmQrCode } from '@kokimoki/shared';
-import { Bomb, Crown, Skull } from 'lucide-react';
+import { Bomb, Crown, Skull, Trophy } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import * as React from 'react';
 import { useSnapshot } from 'valtio';
@@ -19,7 +19,9 @@ const App: React.FC = () => {
 		bombHolderId,
 		playerStatus,
 		winnerId,
-		currentQuestion
+		currentQuestion,
+		playerStats,
+		eliminationOrder
 	} = useSnapshot(globalStore.proxy);
 
 	useGlobalController();
@@ -41,6 +43,27 @@ const App: React.FC = () => {
 		([id]) => playerStatus[id] === 'eliminated'
 	);
 
+	// Calculate leaderboard
+	const leaderboard = React.useMemo(() => {
+		if (!winnerId) return [];
+
+		// Reverse elimination order to get rank (last eliminated = 2nd place, etc.)
+		// Winner is already at the end of eliminationOrder
+		const rankedIds = [...eliminationOrder].reverse();
+
+		return rankedIds.map((id, index) => {
+			const stats = playerStats[id];
+			return {
+				rank: index + 1,
+				id,
+				name: players[id]?.name || 'Unknown',
+				score: stats?.questionsAnswered || 0,
+				holdTime: Math.round((stats?.bombHoldTime || 0) / 1000),
+				closeCalls: stats?.closeCalls || 0
+			};
+		});
+	}, [winnerId, eliminationOrder, playerStats, players]);
+
 	return (
 		<HostPresenterLayout.Root className="overflow-hidden">
 			<HostPresenterLayout.Header>
@@ -49,31 +72,96 @@ const App: React.FC = () => {
 
 			<div className="relative flex h-[calc(100vh-150px)] w-full flex-col">
 				{/* QR Code Overlay (Top Right) */}
-				<div className="bg-game-surface absolute top-0 right-0 z-50 flex flex-col items-center gap-2 rounded-bl-2xl border-b border-l border-white/10 p-4 shadow-xl">
-					<div className="rounded-lg bg-white p-2">
-						<KmQrCode data={playerLink} size={100} interactive={false} />
+				{!winnerId && (
+					<div className="bg-game-surface absolute top-0 right-0 z-50 flex flex-col items-center gap-2 rounded-bl-2xl border-b border-l border-white/10 p-4 shadow-xl">
+						<div className="rounded-lg bg-white p-2">
+							<KmQrCode data={playerLink} size={100} interactive={false} />
+						</div>
+						<div className="text-game-text text-xs font-bold">Join Game</div>
 					</div>
-					<div className="text-game-text text-xs font-bold">Join Game</div>
-				</div>
+				)}
 
 				{/* Main Arena (Circle) */}
 				<div className="relative flex flex-1 items-center justify-center">
 					{/* Center Stage: Question or Status */}
-					<div className="absolute z-10 flex h-64 w-96 flex-col items-center justify-center rounded-full p-8 text-center">
+					<div className="absolute z-10 flex h-full w-full flex-col items-center justify-center p-8 text-center">
 						<AnimatePresence mode="wait">
 							{winnerId ? (
 								<motion.div
-									key="winner"
-									initial={{ scale: 0, opacity: 0 }}
+									key="leaderboard"
+									initial={{ scale: 0.9, opacity: 0 }}
 									animate={{ scale: 1, opacity: 1 }}
-									className="flex flex-col items-center gap-4"
+									className="bg-game-surface/95 flex max-h-[80vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 shadow-2xl backdrop-blur-xl"
 								>
-									<Crown size={64} className="text-yellow-400" />
-									<div className="text-4xl font-bold text-yellow-400">
-										WINNER
+									<div className="bg-game-primary/20 flex items-center justify-center gap-3 p-6">
+										<Trophy size={32} className="text-yellow-400" />
+										<h2 className="text-3xl font-bold text-white">
+											Final Standings
+										</h2>
 									</div>
-									<div className="text-2xl text-white">
-										{players[winnerId]?.name}
+
+									<div className="overflow-y-auto p-6">
+										<table className="w-full text-left">
+											<thead>
+												<tr className="text-game-text-muted border-b border-white/10 text-sm tracking-wider uppercase">
+													<th className="pb-4 pl-4 font-medium">Rank</th>
+													<th className="pb-4 font-medium">Player</th>
+													<th className="pb-4 text-center font-medium">
+														Correct Answers
+													</th>
+													<th className="pb-4 text-center font-medium">
+														Bomb Time (s)
+													</th>
+													<th className="pb-4 text-center font-medium">
+														Close Calls
+													</th>
+												</tr>
+											</thead>
+											<tbody className="text-game-text">
+												{leaderboard.map((player) => (
+													<tr
+														key={player.id}
+														className={`border-b border-white/5 transition-colors hover:bg-white/5 ${
+															player.rank === 1 ? 'bg-yellow-500/10' : ''
+														}`}
+													>
+														<td className="py-4 pl-4">
+															<div
+																className={`flex h-8 w-8 items-center justify-center rounded-full font-bold ${
+																	player.rank === 1
+																		? 'bg-yellow-500 text-black'
+																		: player.rank === 2
+																			? 'bg-gray-300 text-black'
+																			: player.rank === 3
+																				? 'bg-amber-700 text-white'
+																				: 'bg-white/10 text-white/50'
+																}`}
+															>
+																{player.rank}
+															</div>
+														</td>
+														<td className="py-4 text-lg font-bold">
+															{player.name}
+															{player.rank === 1 && (
+																<Crown
+																	size={16}
+																	className="ml-2 inline text-yellow-400"
+																/>
+															)}
+														</td>
+														<td className="py-4 text-center font-mono text-xl">
+															{player.score}
+														</td>
+														<td className="py-4 text-center font-mono text-xl text-red-400">
+															{player.holdTime}s
+														</td>
+														<td className="py-4 text-center font-mono text-xl text-orange-400">
+															{player.closeCalls}
+														</td>
+													</tr>
+												))}
+											</tbody>
+										</table>
 									</div>
 								</motion.div>
 							) : started && currentQuestion ? (
@@ -82,12 +170,12 @@ const App: React.FC = () => {
 									initial={{ opacity: 0, y: 20 }}
 									animate={{ opacity: 1, y: 0 }}
 									exit={{ opacity: 0, y: -20 }}
-									className="flex flex-col gap-4"
+									className="flex max-w-2xl flex-col gap-4"
 								>
 									<div className="text-game-text-muted text-sm tracking-widest uppercase">
 										Current Question
 									</div>
-									<div className="text-game-text text-xl leading-relaxed font-bold">
+									<div className="text-game-text text-3xl leading-relaxed font-bold">
 										{currentQuestion.text}
 									</div>
 								</motion.div>
@@ -104,83 +192,89 @@ const App: React.FC = () => {
 						</AnimatePresence>
 					</div>
 
-					{/* Players Circle */}
-					<div className="relative h-[600px] w-[600px]">
-						<AnimatePresence>
-							{alivePlayers.map(([id, player], index) => {
-								const total = alivePlayers.length;
-								const angle = (index / total) * 2 * Math.PI - Math.PI / 2; // Start from top
-								const radius = 250; // Circle radius
-								const x = Math.cos(angle) * radius;
-								const y = Math.sin(angle) * radius;
+					{/* Players Circle - Hide when winner is shown */}
+					{!winnerId && (
+						<div className="relative h-[600px] w-[600px]">
+							<AnimatePresence>
+								{alivePlayers.map(([id, player], index) => {
+									const total = alivePlayers.length;
+									const angle = (index / total) * 2 * Math.PI - Math.PI / 2; // Start from top
+									const radius = 250; // Circle radius
+									const x = Math.cos(angle) * radius;
+									const y = Math.sin(angle) * radius;
 
-								const isBombHolder = id === bombHolderId;
+									const isBombHolder = id === bombHolderId;
 
-								return (
-									<motion.div
-										key={id}
-										layoutId={`player-${id}`}
-										initial={{ scale: 0, opacity: 0 }}
-										animate={{
-											x,
-											y,
-											scale: 1,
-											opacity: 1,
-											zIndex: isBombHolder ? 20 : 1
-										}}
-										exit={{ scale: 0, opacity: 0 }}
-										transition={{ type: 'spring', stiffness: 60, damping: 15 }}
-										className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
-									>
-										<div
-											className={`relative flex h-20 w-20 items-center justify-center rounded-full border-4 shadow-lg transition-colors duration-300 ${
-												isBombHolder
-													? 'border-red-500 bg-red-900/50 shadow-red-500/50'
-													: 'border-white/20 bg-white/10 shadow-black/20'
-											}`}
+									return (
+										<motion.div
+											key={id}
+											layoutId={`player-${id}`}
+											initial={{ scale: 0, opacity: 0 }}
+											animate={{
+												x,
+												y,
+												scale: 1,
+												opacity: 1,
+												zIndex: isBombHolder ? 20 : 1
+											}}
+											exit={{ scale: 0, opacity: 0 }}
+											transition={{
+												type: 'spring',
+												stiffness: 60,
+												damping: 15
+											}}
+											className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
 										>
-											<div className="text-2xl font-bold text-white">
-												{player.name.charAt(0).toUpperCase()}
-											</div>
+											<div
+												className={`relative flex h-20 w-20 items-center justify-center rounded-full border-4 shadow-lg transition-colors duration-300 ${
+													isBombHolder
+														? 'border-red-500 bg-red-900/50 shadow-red-500/50'
+														: 'border-white/20 bg-white/10 shadow-black/20'
+												}`}
+											>
+												<div className="text-2xl font-bold text-white">
+													{player.name.charAt(0).toUpperCase()}
+												</div>
 
-											{/* The Bomb */}
-											{isBombHolder && (
-												<motion.div
-													layoutId="bomb"
-													className="absolute -top-4 -right-4 z-30 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]"
-													transition={{
-														type: 'spring',
-														stiffness: 50,
-														damping: 12
-													}}
-												>
+												{/* The Bomb */}
+												{isBombHolder && (
 													<motion.div
-														animate={{
-															scale: [1, 1.2, 1],
-															rotate: [0, 5, -5, 0]
-														}}
+														layoutId="bomb"
+														className="absolute -top-4 -right-4 z-30 text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]"
 														transition={{
-															repeat: Infinity,
-															duration: 0.5
+															type: 'spring',
+															stiffness: 50,
+															damping: 12
 														}}
 													>
-														<Bomb size={48} fill="currentColor" />
+														<motion.div
+															animate={{
+																scale: [1, 1.2, 1],
+																rotate: [0, 5, -5, 0]
+															}}
+															transition={{
+																repeat: Infinity,
+																duration: 0.5
+															}}
+														>
+															<Bomb size={48} fill="currentColor" />
+														</motion.div>
 													</motion.div>
-												</motion.div>
-											)}
-										</div>
-										<div className="bg-game-surface mt-2 rounded px-2 py-1 text-sm font-medium text-white shadow">
-											{player.name}
-										</div>
-									</motion.div>
-								);
-							})}
-						</AnimatePresence>
-					</div>
+												)}
+											</div>
+											<div className="bg-game-surface mt-2 rounded px-2 py-1 text-sm font-medium text-white shadow">
+												{player.name}
+											</div>
+										</motion.div>
+									);
+								})}
+							</AnimatePresence>
+						</div>
+					)}
 				</div>
 
-				{/* Graveyard (Eliminated Players) */}
-				{eliminatedPlayers.length > 0 && (
+				{/* Graveyard (Eliminated Players) - Hide when winner is shown */}
+				{!winnerId && eliminatedPlayers.length > 0 && (
 					<div className="border-t border-white/10 bg-black/20 p-4 backdrop-blur-sm">
 						<div className="mb-2 flex items-center gap-2 text-sm font-bold tracking-wider text-red-400 uppercase">
 							<Skull size={16} /> Graveyard
