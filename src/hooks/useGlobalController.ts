@@ -55,18 +55,6 @@ export function useGlobalController() {
 
 		console.log('Starting global controller loop');
 
-		// Separate interval for queue management to avoid blocking the explosion timer
-		const queueInterval = setInterval(() => {
-			// Use snapshot to avoid proxy overhead
-			const { started } = globalStore.proxy;
-			if (started) {
-				// Run checkQueue in a non-blocking way
-				setTimeout(() => {
-					gameActions.checkQueue();
-				}, 0);
-			}
-		}, 2000);
-
 		// Use a Web Worker for the game loop to prevent throttling when tab is in background
 		const workerCode = `
 			let intervalId;
@@ -124,15 +112,9 @@ export function useGlobalController() {
 
 				isHandlingExplosion.current = true;
 
-				// Add a timeout race to ensure we don't hang forever
-				const timeoutPromise = new Promise((_, reject) =>
-					setTimeout(
-						() => reject(new Error('Explosion handling timed out')),
-						5000
-					)
-				);
-
-				Promise.race([gameActions.handleExplosion(), timeoutPromise])
+				// Trust the SDK - Promise.race doesn't cancel transactions and creates phantom locks
+				gameActions
+					.handleExplosion()
 					.catch((err) => {
 						console.error('Explosion handling failed:', err);
 					})
@@ -149,7 +131,6 @@ export function useGlobalController() {
 			worker.postMessage('stop');
 			worker.terminate();
 			URL.revokeObjectURL(workerUrl);
-			clearInterval(queueInterval);
 		};
 	}, [isGlobalController]);
 

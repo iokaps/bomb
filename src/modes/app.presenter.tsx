@@ -21,11 +21,14 @@ const App: React.FC = () => {
 		winnerId,
 		currentQuestion,
 		playerStats,
-		eliminationOrder
+		eliminationOrder,
+		gameSettings
 	} = useSnapshot(globalStore.proxy);
 
 	useWakeLock();
 	useDocumentTitle(title);
+
+	const difficultyLabels = ['Easy', 'Medium', 'Hard', 'Very Hard'];
 
 	if (kmClient.clientContext.mode !== 'presenter') {
 		throw new Error('App presenter rendered in non-presenter mode');
@@ -67,7 +70,15 @@ const App: React.FC = () => {
 	return (
 		<HostPresenterLayout.Root className="overflow-hidden">
 			<HostPresenterLayout.Header>
-				<div className="text-sm opacity-70">{config.presenterLabel}</div>
+				<div className="flex items-center justify-between gap-4">
+					<div className="text-sm opacity-70">{config.presenterLabel}</div>
+					{started && !winnerId && (
+						<div className="bg-game-primary/20 text-game-text rounded-full px-4 py-1.5 text-sm font-bold">
+							Difficulty:{' '}
+							{difficultyLabels[gameSettings.difficulty - 1] || 'Easy'}
+						</div>
+					)}
+				</div>
 			</HostPresenterLayout.Header>
 
 			<div className="relative flex h-[calc(100vh-150px)] w-full flex-col">

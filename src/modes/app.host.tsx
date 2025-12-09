@@ -93,13 +93,14 @@ const App: React.FC = () => {
 	const { title } = config;
 	useDocumentTitle(title);
 
-	const { started, players, bombHolderId, winnerId } = useSnapshot(
-		globalStore.proxy
-	);
+	const { started, players, bombHolderId, winnerId, gameSettings } =
+		useSnapshot(globalStore.proxy);
 	const [theme, setTheme] = useState('General Knowledge');
 	const [language, setLanguage] = useState('English');
 	const [gameMode, setGameMode] = useState<GameMode>('accelerating');
 	const [loading, setLoading] = useState(false);
+
+	const difficultyLabels = ['Easy', 'Medium', 'Hard', 'Very Hard'];
 
 	if (kmClient.clientContext.mode !== 'host') {
 		throw new Error('App host rendered in non-host mode');
@@ -240,6 +241,14 @@ const App: React.FC = () => {
 						) : (
 							<div className="flex flex-col gap-4">
 								<div className="text-game-text text-lg">Game in progress!</div>
+								<div className="bg-game-primary/10 rounded-lg p-3">
+									<div className="text-game-text-muted text-xs tracking-wider uppercase">
+										Current Difficulty
+									</div>
+									<div className="text-game-text text-2xl font-bold">
+										{difficultyLabels[gameSettings.difficulty - 1] || 'Easy'}
+									</div>
+								</div>
 								<FuseTimer />
 								<div className="text-game-text">
 									Bomb Holder:{' '}

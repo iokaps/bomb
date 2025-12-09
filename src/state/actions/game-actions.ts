@@ -16,7 +16,13 @@ async function generateQuestions(
 	avoidQuestions: Set<string> = new Set()
 ): Promise<Question[]> {
 	const difficultyText =
-		difficulty === 1 ? 'easy' : difficulty === 2 ? 'medium' : 'hard';
+		difficulty === 1
+			? 'easy'
+			: difficulty === 2
+				? 'medium'
+				: difficulty === 3
+					? 'hard'
+					: 'very hard';
 	const collectedQuestions: Question[] = [];
 	let attempts = 0;
 	const maxAttempts = 3;
@@ -47,25 +53,33 @@ async function generateQuestions(
 				model: 'gemini-2.5-flash',
 				systemPrompt: `You are a trivia host for a fast-paced live game called "Bomb". Generate ${needed} trivia questions as a JSON array of objects. Each object must have fields: id, text, options (array of 4 strings), correctAnswer. 
 			
-			Guidelines:
+			Difficulty Level: ${difficultyText}
+			
+			Difficulty Guidelines:
+			- Easy (1): Common knowledge, facts everyone knows (e.g., "What is the capital of France?")
+			- Medium (2): General knowledge requiring some education (e.g., "In what year did World War II end?")
+			- Hard (3): Specific facts, lesser-known information (e.g., "What is the atomic number of gold?")
+			- Very Hard (4): Obscure facts, expert-level knowledge (e.g., "Who was the 13th Prime Minister of Canada?")
+			
+			General Guidelines:
 			- Output ONLY valid JSON. No markdown, no code blocks, no explanations.
-			- Difficulty: ${difficultyText}
 			- Theme: ${theme}
 			- Language: ${language}
 			- Style: Concise, short, and punchy. Suitable for reading quickly on a screen. Max 15 words per question.
 			- Options: Keep options short (1-3 words ideally).
 			- Variety: Ensure questions cover different sub-topics within the theme. Avoid repetitive question patterns.
 			- Uniqueness: Do not repeat questions from the provided list.
+			- CRITICAL: Questions MUST match the ${difficultyText} difficulty level exactly.
 			- Strict Mode: Return raw JSON only. Do not include any conversational text.
 			- Format: [{"id": "1", "text": "Question?", "options": ["A", "B", "C", "D"], "correctAnswer": "A"}]
 			${avoidText}`,
-				userPrompt: `Generate ${needed} unique and diverse questions about "${theme}" in ${language}.`,
+				userPrompt: `Generate ${needed} unique and diverse ${difficultyText} questions about "${theme}" in ${language}.`,
 				temperature: 0.9 + (attempts - 1) * 0.1
 			});
 
-			// 8 second timeout
+			// 15 second timeout (more breathing room for AI)
 			const timeoutPromise = new Promise<{ content: string }>((_, reject) =>
-				setTimeout(() => reject(new Error('AI generation timed out')), 8000)
+				setTimeout(() => reject(new Error('AI generation timed out')), 15000)
 			);
 
 			const { content } = await Promise.race([chatPromise, timeoutPromise]);
@@ -211,12 +225,16 @@ async function replenishQueue() {
 	// Don't replenish if game is not started
 	if (!started) return;
 
-	// Don't replenish if explosion is imminent (within 10s) or overdue
+	// Don't replenish if explosion is imminent (proportional to game mode)
 	// This prevents locking the store when we need to process an explosion
-	const { bombExplosionTime } = state;
+	const { bombExplosionTime, currentFuseDuration } = state;
 	const now = kmClient.serverTimestamp();
-	if (bombExplosionTime && bombExplosionTime - now < 10000) {
-		console.log('Skipping replenishQueue: Explosion imminent');
+	// Use 50% of current fuse duration as buffer (min 5s, max 20s)
+	const bufferTime = Math.min(20000, Math.max(5000, currentFuseDuration * 0.5));
+	if (bombExplosionTime && bombExplosionTime - now < bufferTime) {
+		console.log(
+			`Skipping replenishQueue: Explosion imminent (within ${bufferTime / 1000}s)`
+		);
 		return;
 	}
 
@@ -252,11 +270,15 @@ async function replenishQueue() {
 
 			// Double check time before starting heavy AI work
 			const currentNow = kmClient.serverTimestamp();
+			const currentFuse = globalStore.proxy.currentFuseDuration;
+			const preAiBuffer = Math.min(20000, Math.max(5000, currentFuse * 0.5));
 			if (
 				globalStore.proxy.bombExplosionTime &&
-				globalStore.proxy.bombExplosionTime - currentNow < 10000
+				globalStore.proxy.bombExplosionTime - currentNow < preAiBuffer
 			) {
-				console.log('Skipping replenishQueue (pre-AI): Explosion imminent');
+				console.log(
+					`Skipping replenishQueue (pre-AI): Explosion imminent (within ${preAiBuffer / 1000}s)`
+				);
 				return;
 			}
 
@@ -281,12 +303,17 @@ async function replenishQueue() {
 
 			// Triple check time before transaction
 			const finalNow = kmClient.serverTimestamp();
+			const finalFuse = globalStore.proxy.currentFuseDuration;
+			const preTransactBuffer = Math.min(
+				15000,
+				Math.max(3000, finalFuse * 0.4)
+			);
 			if (
 				globalStore.proxy.bombExplosionTime &&
-				globalStore.proxy.bombExplosionTime - finalNow < 5000
+				globalStore.proxy.bombExplosionTime - finalNow < preTransactBuffer
 			) {
 				console.log(
-					'Skipping replenishQueue (pre-transact): Explosion imminent'
+					`Skipping replenishQueue (pre-transact): Explosion imminent (within ${preTransactBuffer / 1000}s)`
 				);
 				return;
 			}
@@ -296,7 +323,9 @@ async function replenishQueue() {
 
 			console.log('replenishQueue: starting transaction');
 
-			// Wrap transaction in a timeout to prevent hanging the SDK queue
+			// The SDK's transact can hang waiting for server confirmation
+			// Don't let this block the entire game - use a timeout
+			const transactStart = Date.now();
 			const transactionPromise = kmClient.transact([globalStore], ([s]) => {
 				console.log('replenishQueue: inside transaction callback - start');
 				cleanQuestions.forEach((q: Question) => s.questionQueue.push(q));
@@ -306,17 +335,32 @@ async function replenishQueue() {
 					s.usedQuestionTexts.push(q.text)
 				);
 				console.log('replenishQueue: pushed to used texts');
+				console.log('replenishQueue: transaction callback complete');
 			});
 
-			const timeoutPromise = new Promise((_, reject) =>
-				setTimeout(
-					() => reject(new Error('replenishQueue transaction timed out')),
-					3000
-				)
+			// Set a timeout - if SDK hangs, abort and try again later
+			const timeoutPromise = new Promise<void>((_, reject) =>
+				setTimeout(() => {
+					console.warn('replenishQueue: transaction timed out after 5s');
+					reject(new Error('Transaction timeout'));
+				}, 5000)
 			);
 
-			await Promise.race([transactionPromise, timeoutPromise]);
-			console.log('replenishQueue: transaction committed');
+			try {
+				await Promise.race([transactionPromise, timeoutPromise]);
+				const transactEnd = Date.now();
+				console.log(
+					`replenishQueue: transaction committed (took ${transactEnd - transactStart}ms)`
+				);
+			} catch (timeoutErr) {
+				// Timeout occurred - log and continue
+				// The transaction callback already executed, so the SDK might still commit it
+				// But we won't block waiting for it
+				console.warn(
+					'replenishQueue: giving up waiting for commit, continuing anyway'
+				);
+				// Don't throw - let the game continue
+			}
 		} catch (err) {
 			console.error('Background question fetch failed', err);
 		} finally {
@@ -337,13 +381,17 @@ async function getNextQuestion(): Promise<Question> {
 			nextQ = s.questionQueue.shift() || null;
 		});
 		if (nextQ) {
-			// Trigger background refill asynchronously
-			setTimeout(() => replenishQueue(), 100);
+			console.log(
+				`getNextQuestion: from queue (${state.questionQueue.length} remaining)`
+			);
 			return nextQ;
 		}
 	}
 
-	// Fallback if queue is empty (e.g. start of game or network lag)
+	// Fallback if queue is empty - generate on-demand without replenishing
+	console.warn(
+		'getNextQuestion: Queue exhausted! Generating on-demand (this should be rare)'
+	);
 	const avoidSet = new Set(state.usedQuestionTexts);
 	const questions = await generateQuestions(
 		state.gameSettings.theme,
@@ -358,9 +406,6 @@ async function getNextQuestion(): Promise<Question> {
 	await kmClient.transact([globalStore], ([s]) => {
 		s.usedQuestionTexts.push(q.text);
 	});
-
-	// Trigger replenishment asynchronously
-	setTimeout(() => replenishQueue(), 100);
 
 	return q;
 }
@@ -436,15 +481,38 @@ export const gameActions = {
 				kmClient.serverTimestamp() + state.currentFuseDuration;
 		});
 
-		// 2. Generate first question immediately
-		const firstQuestion = await getNextQuestion();
-		await kmClient.transact([globalStore], ([state]) => {
-			state.currentQuestion = firstQuestion;
-		});
+		// 2. Pre-generate a large buffer of questions before starting
+		// This avoids the need to replenish during gameplay which can cause transaction conflicts
+		console.log('Pre-generating question buffer...');
+		const avoidSet = new Set<string>();
+		const initialQuestions: Question[] = [];
 
-		// 3. Fill the buffer for subsequent turns
-		replenishQueue();
-		replenishQueue();
+		// Generate 50 questions upfront (enough for typical games)
+		// 5 batches of 10 questions each - balanced between coverage and startup time
+		for (let i = 0; i < 5; i++) {
+			console.log(`Generating batch ${i + 1}/5...`);
+			const batch = await generateQuestions(
+				theme,
+				1, // Start with easy
+				language,
+				10,
+				avoidSet
+			);
+			batch.forEach((q) => {
+				initialQuestions.push(q);
+				avoidSet.add(q.text);
+			});
+			console.log(`Generated ${initialQuestions.length} questions so far`);
+		}
+
+		console.log(`Pre-generated ${initialQuestions.length} questions total`);
+
+		// Add all questions to the queue
+		await kmClient.transact([globalStore], ([state]) => {
+			state.questionQueue = initialQuestions;
+			state.usedQuestionTexts = initialQuestions.map((q) => q.text);
+			state.currentQuestion = state.questionQueue.shift() || null;
+		});
 	},
 
 	async passBomb() {
@@ -584,6 +652,14 @@ export const gameActions = {
 						state.playerStats[victimId].bombHoldTime +=
 							now - state.playerStats[victimId].bombHoldStart;
 						state.playerStats[victimId].bombHoldStart = null;
+					}
+
+					// Increase difficulty after each elimination (cap at 4)
+					if (state.gameSettings.difficulty < 4) {
+						state.gameSettings.difficulty += 1;
+						console.log(
+							`Difficulty increased to ${state.gameSettings.difficulty}`
+						);
 					}
 				}
 
