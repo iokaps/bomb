@@ -10,6 +10,13 @@ gameLobbyMd: |
 howToPlayMd: |
   # How to Play Bomb
 
+  ## Available Game Modes
+
+  - **Accelerating Fuse:** Fuse starts at 30s and gets shorter by 2s every pass (min 5s).
+  - **Classic (Hot Potato):** Global random timer (45-90s). Passing doesn't change the timer.
+  - **Shot Clock:** Timer resets to 15s on every pass.
+  - **Chaos Mode:** Fuse resets to a random duration (5-25s) on every pass.
+
   **Objective:** Don't be holding the bomb when it explodes!
 
   1. **Join:** Players scan the QR code to join the game.

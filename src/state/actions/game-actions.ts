@@ -1,5 +1,9 @@
 import { kmClient } from '@/services/km-client';
-import { globalStore, type Question } from '../stores/global-store';
+import {
+	globalStore,
+	type GameMode,
+	type Question
+} from '../stores/global-store';
 import { playerStore } from '../stores/player-store';
 
 // Helper to generate a question using AI
@@ -289,7 +293,11 @@ async function getNextQuestion(): Promise<Question> {
 }
 
 export const gameActions = {
-	async startGame(theme: string, language: string = 'English') {
+	async startGame(
+		theme: string,
+		language: string = 'English',
+		gameMode: GameMode = 'accelerating'
+	) {
 		// 1. Set up game state
 		await kmClient.transact([globalStore], ([state]) => {
 			state.started = true;
@@ -297,6 +305,7 @@ export const gameActions = {
 			state.gameSettings.theme = theme;
 			state.gameSettings.language = language;
 			state.gameSettings.difficulty = 1;
+			state.gameMode = gameMode;
 			state.winnerId = null;
 
 			// Always clear queue on start to ensure questions match the new theme
@@ -331,8 +340,25 @@ export const gameActions = {
 				}
 			}
 
-			// Set explosion time (starts at 30s)
-			state.currentFuseDuration = 30000;
+			// Set explosion time based on mode
+			switch (gameMode) {
+				case 'classic':
+					// Random between 45s and 90s
+					state.currentFuseDuration = 45000 + Math.random() * 45000;
+					break;
+				case 'shot-clock':
+					state.currentFuseDuration = 15000;
+					break;
+				case 'chaos':
+					// Random between 5s and 25s
+					state.currentFuseDuration = 5000 + Math.random() * 20000;
+					break;
+				case 'accelerating':
+				default:
+					state.currentFuseDuration = 30000;
+					break;
+			}
+
 			state.bombExplosionTime =
 				kmClient.serverTimestamp() + state.currentFuseDuration;
 		});
@@ -388,12 +414,30 @@ export const gameActions = {
 					state.playerStats[state.bombHolderId].bombHoldStart = now;
 				}
 
-				// Accelerating Fuse: Decrease duration by 2s (min 5s) and reset timer
-				state.currentFuseDuration = Math.max(
-					5000,
-					state.currentFuseDuration - 2000
-				);
-				state.bombExplosionTime = now + state.currentFuseDuration;
+				// Update fuse based on game mode
+				switch (state.gameMode) {
+					case 'classic':
+						// Do not change explosion time
+						break;
+					case 'shot-clock':
+						state.currentFuseDuration = 15000;
+						state.bombExplosionTime = now + state.currentFuseDuration;
+						break;
+					case 'chaos':
+						// Random between 5s and 25s
+						state.currentFuseDuration = 5000 + Math.random() * 20000;
+						state.bombExplosionTime = now + state.currentFuseDuration;
+						break;
+					case 'accelerating':
+					default:
+						// Decrease duration by 2s (min 5s) and reset timer
+						state.currentFuseDuration = Math.max(
+							5000,
+							state.currentFuseDuration - 2000
+						);
+						state.bombExplosionTime = now + state.currentFuseDuration;
+						break;
+				}
 			}
 
 			state.currentQuestion = nextQ;
@@ -447,7 +491,6 @@ export const gameActions = {
 			);
 		}
 	},
-
 	async handleExplosion() {
 		await kmClient.transact([globalStore], ([state]) => {
 			const victimId = state.bombHolderId;
@@ -495,10 +538,24 @@ export const gameActions = {
 					state.playerStats[state.bombHolderId].bombHoldStart = now;
 				}
 
-				// Reset timer
-				state.currentFuseDuration = 30000;
-				state.bombExplosionTime =
-					kmClient.serverTimestamp() + state.currentFuseDuration;
+				// Reset timer based on mode
+				switch (state.gameMode) {
+					case 'classic':
+						state.currentFuseDuration = 45000 + Math.random() * 45000;
+						break;
+					case 'shot-clock':
+						state.currentFuseDuration = 15000;
+						break;
+					case 'chaos':
+						state.currentFuseDuration = 5000 + Math.random() * 20000;
+						break;
+					case 'accelerating':
+					default:
+						state.currentFuseDuration = 30000;
+						break;
+				}
+
+				state.bombExplosionTime = now + state.currentFuseDuration;
 			}
 		});
 

@@ -19,9 +19,48 @@
 	--color-game-text-muted: #94a3b8;
 }
 
+:root,
+.dark,
+[data-theme='dark'] {
+	--background: 15 23 42; /* #0f172a (game-bg) in RGB/HSL format for shadcn/radix */
+	--foreground: 248 250 252; /* #f8fafc (game-text) */
+	--card: 30 41 59; /* #1e293b (game-surface) */
+	--card-foreground: 248 250 252;
+	--popover: 30 41 59; /* #1e293b (game-surface) */
+	--popover-foreground: 248 250 252;
+	--primary: 99 102 241; /* #6366f1 (game-primary) */
+	--primary-foreground: 255 255 255;
+	--secondary: 236 72 153; /* #ec4899 (game-secondary) */
+	--secondary-foreground: 255 255 255;
+	--muted: 15 23 42;
+	--muted-foreground: 148 163 184; /* #94a3b8 (game-text-muted) */
+	--accent: 139 92 246; /* #8b5cf6 (game-accent) */
+	--accent-foreground: 255 255 255;
+	--destructive: 239 68 68;
+	--destructive-foreground: 255 255 255;
+	--border: 255 255 255;
+	--input: 255 255 255;
+	--ring: 99 102 241;
+	--radius: 0.5rem;
+}
+
 html,
 body {
 	background-color: var(--color-game-bg);
 	color: var(--color-game-text);
 	font-family: var(--font-family);
+}
+
+/* Fix for @kokimoki/shared modal styles */
+.bg-base-100 {
+	background-color: var(--color-game-surface) !important;
+	color: var(--color-game-text) !important;
+}
+
+.bg-base-200 {
+	background-color: var(--color-game-bg) !important;
+}
+
+.bg-base-200\/95 {
+	background-color: rgb(15 23 42 / 0.95) !important;
 }

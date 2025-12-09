@@ -5,13 +5,21 @@ import { generateLink } from '@/kit/generate-link';
 import { HostPresenterLayout } from '@/layouts/host-presenter';
 import { kmClient } from '@/services/km-client';
 import { gameActions } from '@/state/actions/game-actions';
-import { globalStore } from '@/state/stores/global-store';
+import { globalStore, type GameMode } from '@/state/stores/global-store';
 import { KmModalProvider, KmQrCode, useKmModal } from '@kokimoki/shared';
 import { CircleHelp } from 'lucide-react';
 import * as React from 'react';
 import { useState } from 'react';
 import Markdown from 'react-markdown';
 import { useSnapshot } from 'valtio';
+
+const GAME_MODE_DESCRIPTIONS: Record<GameMode, string> = {
+	accelerating:
+		'Fuse starts at 30s and gets shorter by 2s every pass (min 5s).',
+	classic: "Global random timer (45-90s). Passing doesn't change the timer.",
+	'shot-clock': 'Timer resets to 15s on every pass.',
+	chaos: 'Fuse resets to a random duration (5-25s) on every pass.'
+};
 
 const HelpButton = () => {
 	const { openDialog } = useKmModal();
@@ -21,6 +29,7 @@ const HelpButton = () => {
 			onClick={() =>
 				openDialog({
 					title: config.helpButtonLabel,
+					description: 'Game instructions and rules',
 					content: (
 						<div className="prose prose-invert max-w-none">
 							<Markdown>{config.howToPlayMd}</Markdown>
@@ -29,9 +38,9 @@ const HelpButton = () => {
 					type: 'dialog'
 				})
 			}
-			className="text-game-text-muted hover:text-game-primary flex items-center gap-2 transition-colors"
+			className="flex items-center gap-2 rounded-md border border-white/20 bg-transparent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-white/10"
 		>
-			<CircleHelp size={20} />
+			<CircleHelp size={18} />
 			<span className="hidden sm:inline">{config.helpButtonLabel}</span>
 		</button>
 	);
@@ -46,6 +55,7 @@ const App: React.FC = () => {
 		useSnapshot(globalStore.proxy);
 	const [theme, setTheme] = useState('General Knowledge');
 	const [language, setLanguage] = useState('English');
+	const [gameMode, setGameMode] = useState<GameMode>('accelerating');
 	const [loading, setLoading] = useState(false);
 
 	if (kmClient.clientContext.mode !== 'host') {
@@ -136,17 +146,34 @@ const App: React.FC = () => {
 										<option value="Portuguese">Portuguese</option>
 										<option value="Japanese">Japanese</option>
 										<option value="Korean">Korean</option>
-										<option value="Chinese">Chinese</option>
 										<option value="Russian">Russian</option>
 										<option value="Greek">Greek</option>
 									</select>
+								</div>
+								<div>
+									<label className="text-game-text-muted block text-sm font-medium">
+										Game Mode
+									</label>
+									<select
+										value={gameMode}
+										onChange={(e) => setGameMode(e.target.value as GameMode)}
+										className="bg-game-bg text-game-text focus:border-game-primary focus:ring-game-primary mt-1 block w-full rounded-md border border-white/20 p-2 shadow-sm sm:text-sm"
+									>
+										<option value="accelerating">Accelerating Fuse</option>
+										<option value="classic">Classic (Hot Potato)</option>
+										<option value="shot-clock">Shot Clock</option>
+										<option value="chaos">Chaos Mode</option>
+									</select>
+									<div className="text-game-text-muted mt-1 text-xs">
+										{GAME_MODE_DESCRIPTIONS[gameMode]}
+									</div>
 								</div>
 								<div className="flex gap-2">
 									<button
 										onClick={async () => {
 											setLoading(true);
 											try {
-												await gameActions.startGame(theme, language);
+												await gameActions.startGame(theme, language, gameMode);
 											} finally {
 												setLoading(false);
 											}

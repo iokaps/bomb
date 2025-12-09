@@ -7,11 +7,14 @@ export interface Question {
 	correctAnswer: string;
 }
 
+export type GameMode = 'accelerating' | 'classic' | 'shot-clock' | 'chaos';
+
 export interface GlobalState {
 	controllerConnectionId: string;
 	started: boolean;
 	startTimestamp: number;
 	players: Record<string, { name: string }>;
+	gameMode: GameMode;
 
 	// Bomb Game State
 	bombHolderId: string | null;
@@ -48,6 +51,7 @@ const initialState: GlobalState = {
 	started: false,
 	startTimestamp: 0,
 	players: {},
+	gameMode: 'accelerating',
 	bombHolderId: null,
 	bombExplosionTime: null,
 	currentFuseDuration: 30000,

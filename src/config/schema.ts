@@ -13,7 +13,7 @@ export const schema = z.object({
 	howToPlayMd: z
 		.string()
 		.default(
-			'# How to Play\n\n1. Players join using the QR code.\n2. The host starts the game.\n3. Players answer questions to pass the bomb.\n4. The last player standing wins!'
+			"# How to Play Bomb\n\n**Objective:** Don't be holding the bomb when it explodes!\n\n1. **Join:** Players scan the QR code to join the game.\n2. **Start:** The Host selects a theme and starts the game.\n3. **The Bomb:** One player starts with the bomb.\n4. **Pass It:** To pass the bomb, you must answer a trivia question correctly.\n5. **Explosion:** The bomb explodes after a random time (30-60s). The holder is eliminated.\n6. **Accelerating Fuse:** With every pass, the fuse gets shorter!\n7. **Winner:** The last player alive wins!\n\n## Game Modes\n\n- **Accelerating Fuse:** Fuse starts at 30s and gets shorter by 2s every pass (min 5s).\n- **Classic (Hot Potato):** Global random timer (45-90s). Passing doesn't change the timer.\n- **Shot Clock:** Timer resets to 15s on every pass.\n- **Chaos Mode:** Fuse resets to a random duration (5-25s) on every pass."
 		),
 
 	players: z.string().default('Players'),
