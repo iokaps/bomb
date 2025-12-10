@@ -16,6 +16,7 @@ howToPlayMd: |
   - **Classic (Hot Potato):** Global random timer (45-90s). Passing doesn't change the timer.
   - **Shot Clock:** Timer resets to 15s on every pass.
   - **Chaos Mode:** Fuse resets to a random duration (5-25s) on every pass.
+  - **Lightning Round ⚡:** Ultra-fast 8s constant fuse. No changes on pass. Pure speed!
 
   **Objective:** Don't be holding the bomb when it explodes!
 

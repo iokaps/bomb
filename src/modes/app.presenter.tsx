@@ -22,13 +22,26 @@ const App: React.FC = () => {
 		currentQuestion,
 		playerStats,
 		eliminationOrder,
-		gameSettings
+		countdownEndTime
 	} = useSnapshot(globalStore.proxy);
+
+	const [countdownSeconds, setCountdownSeconds] = React.useState(5);
 
 	useWakeLock();
 	useDocumentTitle(title);
 
-	const difficultyLabels = ['Easy', 'Medium', 'Hard', 'Very Hard'];
+	// Update countdown timer
+	React.useEffect(() => {
+		if (!countdownEndTime) return;
+
+		const interval = setInterval(() => {
+			const now = kmClient.serverTimestamp();
+			const remaining = Math.ceil((countdownEndTime - now) / 1000);
+			setCountdownSeconds(Math.max(0, remaining));
+		}, 100);
+
+		return () => clearInterval(interval);
+	}, [countdownEndTime]);
 
 	if (kmClient.clientContext.mode !== 'presenter') {
 		throw new Error('App presenter rendered in non-presenter mode');
@@ -70,15 +83,7 @@ const App: React.FC = () => {
 	return (
 		<HostPresenterLayout.Root className="overflow-hidden">
 			<HostPresenterLayout.Header>
-				<div className="flex items-center justify-between gap-4">
-					<div className="text-sm opacity-70">{config.presenterLabel}</div>
-					{started && !winnerId && (
-						<div className="bg-game-primary/20 text-game-text rounded-full px-4 py-1.5 text-sm font-bold">
-							Difficulty:{' '}
-							{difficultyLabels[gameSettings.difficulty - 1] || 'Easy'}
-						</div>
-					)}
-				</div>
+				<div className="text-sm opacity-70">{config.presenterLabel}</div>
 			</HostPresenterLayout.Header>
 
 			<div className="relative flex h-[calc(100vh-150px)] w-full flex-col">
@@ -97,7 +102,27 @@ const App: React.FC = () => {
 					{/* Center Stage: Question or Status */}
 					<div className="absolute z-10 flex h-full w-full flex-col items-center justify-center p-8 text-center">
 						<AnimatePresence mode="wait">
-							{winnerId ? (
+							{countdownEndTime ? (
+								<motion.div
+									key="countdown"
+									initial={{ scale: 0.5, opacity: 0 }}
+									animate={{ scale: 1, opacity: 1 }}
+									exit={{ scale: 1.5, opacity: 0 }}
+									className="flex flex-col items-center"
+								>
+									<div className="text-game-text-muted mb-4 text-2xl tracking-widest uppercase">
+										Get Ready
+									</div>
+									<motion.div
+										key={countdownSeconds}
+										initial={{ scale: 1.5, opacity: 0 }}
+										animate={{ scale: 1, opacity: 1 }}
+										className="text-game-primary text-[12rem] leading-none font-bold"
+									>
+										{countdownSeconds}
+									</motion.div>
+								</motion.div>
+							) : winnerId ? (
 								<motion.div
 									key="leaderboard"
 									initial={{ scale: 0.9, opacity: 0 }}
@@ -237,23 +262,25 @@ const App: React.FC = () => {
 											className="absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
 										>
 											<div
-												className={`relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 shadow-lg transition-colors duration-300 ${
+												className={`relative flex h-20 w-20 items-center justify-center rounded-full border-4 shadow-lg transition-colors duration-300 ${
 													isBombHolder
 														? 'border-red-500 bg-red-900/50 shadow-red-500/50'
 														: 'border-white/20 bg-white/10 shadow-black/20'
 												}`}
 											>
-												{player.photoUrl ? (
-													<img
-														src={player.photoUrl}
-														alt={player.name}
-														className="h-full w-full object-cover"
-													/>
-												) : (
-													<div className="text-2xl font-bold text-white">
-														{player.name.charAt(0).toUpperCase()}
-													</div>
-												)}
+												<div className="h-full w-full overflow-hidden rounded-full">
+													{player.photoUrl ? (
+														<img
+															src={player.photoUrl}
+															alt={player.name}
+															className="h-full w-full object-cover"
+														/>
+													) : (
+														<div className="flex h-full w-full items-center justify-center text-2xl font-bold text-white">
+															{player.name.charAt(0).toUpperCase()}
+														</div>
+													)}
+												</div>
 
 												{/* The Bomb */}
 												{isBombHolder && (

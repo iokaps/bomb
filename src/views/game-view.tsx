@@ -4,12 +4,50 @@ import { globalStore } from '@/state/stores/global-store';
 import { playerStore } from '@/state/stores/player-store';
 import { cn } from '@/utils/cn';
 import { Bomb } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSnapshot } from 'valtio';
 
+// Countdown component for the "Get Ready" phase
+const CountdownOverlay = () => {
+	const { countdownEndTime } = useSnapshot(globalStore.proxy);
+	const [secondsLeft, setSecondsLeft] = useState(5);
+
+	useEffect(() => {
+		if (!countdownEndTime) return;
+
+		const interval = setInterval(() => {
+			const now = kmClient.serverTimestamp();
+			const remaining = Math.ceil((countdownEndTime - now) / 1000);
+			setSecondsLeft(Math.max(0, remaining));
+		}, 100);
+
+		return () => clearInterval(interval);
+	}, [countdownEndTime]);
+
+	return (
+		<div className="flex h-full flex-col items-center justify-center text-center">
+			<div className="text-game-text-muted mb-4 text-xl tracking-widest uppercase">
+				Get Ready
+			</div>
+			<div className="text-game-primary animate-pulse text-9xl font-bold">
+				{secondsLeft}
+			</div>
+			<div className="text-game-text-muted mt-8 text-lg">
+				Game starting soon...
+			</div>
+		</div>
+	);
+};
+
 export const GameView = () => {
-	const { bombHolderId, currentQuestion, playerStatus, winnerId, players } =
-		useSnapshot(globalStore.proxy);
+	const {
+		bombHolderId,
+		currentQuestion,
+		playerStatus,
+		winnerId,
+		players,
+		countdownEndTime
+	} = useSnapshot(globalStore.proxy);
 	const { selectedOption } = useSnapshot(playerStore.proxy);
 
 	const myId = kmClient.id;
@@ -23,6 +61,11 @@ export const GameView = () => {
 			state.selectedOption = null;
 		});
 	}, [currentQuestion?.id]);
+
+	// Show countdown overlay during "Get Ready" phase
+	if (countdownEndTime) {
+		return <CountdownOverlay />;
+	}
 
 	if (winnerId) {
 		return (

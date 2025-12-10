@@ -7,12 +7,19 @@ export interface Question {
 	correctAnswer: string;
 }
 
-export type GameMode = 'accelerating' | 'classic' | 'shot-clock' | 'chaos';
+export type GameMode =
+	| 'accelerating'
+	| 'classic'
+	| 'shot-clock'
+	| 'chaos'
+	| 'lightning';
 
 export interface GlobalState {
-	controllerConnectionId: string;
+	controllerClientId: string;
+	hostClientIds: string[]; // Track which clients are hosts for controller election
 	started: boolean;
 	startTimestamp: number;
+	countdownEndTime: number | null; // Timestamp when countdown ends and game begins
 	players: Record<string, { name: string; photoUrl?: string }>;
 	gameMode: GameMode;
 
@@ -22,7 +29,6 @@ export interface GlobalState {
 	currentFuseDuration: number;
 	currentQuestion: Question | null;
 	questionQueue: Question[];
-	usedQuestionTexts: string[];
 	playerStatus: Record<string, 'alive' | 'eliminated'>;
 	winnerId: string | null;
 
@@ -47,9 +53,11 @@ export interface GlobalState {
 }
 
 const initialState: GlobalState = {
-	controllerConnectionId: '',
+	controllerClientId: '',
+	hostClientIds: [],
 	started: false,
 	startTimestamp: 0,
+	countdownEndTime: null,
 	players: {},
 	gameMode: 'accelerating',
 	bombHolderId: null,
@@ -57,7 +65,6 @@ const initialState: GlobalState = {
 	currentFuseDuration: 30000,
 	currentQuestion: null,
 	questionQueue: [],
-	usedQuestionTexts: [],
 	playerStatus: {},
 	winnerId: null,
 
