@@ -29,10 +29,18 @@ resetOnPassLabel: 'Reset Timer on Pass'
 resetOnPassDescriptionEnabled: 'Timer will reset when the bomb is passed.'
 resetOnPassDescriptionDisabled: 'Timer continues counting down when passed (hot potato style).'
 
+difficultyLabel: 'Difficulty'
+difficultyDescription: '1 = Easy, 5 = Extreme. Does not change timer settings.'
+
+trickyQuestionsLabel: 'Tricky Questions'
+trickyQuestionsDescriptionEnabled: 'Uses more plausible distractors and common misconceptions.'
+trickyQuestionsDescriptionDisabled: 'Standard multiple-choice questions.'
+
 players: 'Players'
 timeElapsed: 'Time elapsed'
 startButton: 'Start Game'
 stopButton: 'Stop Game'
+prepareButton: 'Prepare Game'
 
 loading: 'Loading...'
 

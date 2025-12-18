@@ -65,9 +65,16 @@ const App: React.FC = () => {
 	const leaderboard = React.useMemo(() => {
 		if (!winnerId) return [];
 
-		// Reverse elimination order to get rank (last eliminated = 2nd place, etc.)
-		// Winner is already at the end of eliminationOrder
-		const rankedIds = [...eliminationOrder].reverse();
+		const eliminatedIdsInOrder = Object.entries(eliminationOrder)
+			.sort(([a], [b]) => {
+				const aTime = Number(a.split('-')[0]);
+				const bTime = Number(b.split('-')[0]);
+				return aTime - bTime;
+			})
+			.map(([, id]) => id);
+
+		// Winner is appended last; reverse for standings (winner first)
+		const rankedIds = eliminatedIdsInOrder.slice().reverse();
 
 		return rankedIds.map((id, index) => {
 			const stats = playerStats[id];

@@ -1,4 +1,3 @@
-import { PlayerMenu } from '@/components/player/menu';
 import { NameLabel } from '@/components/player/name-label';
 import { config } from '@/config';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -51,11 +50,7 @@ const App: React.FC = () => {
 	return (
 		<KmModalProvider>
 			<PlayerLayout.Root>
-				<PlayerLayout.Header>
-					<div className="flex items-center gap-2">
-						<PlayerMenu />
-					</div>
-				</PlayerLayout.Header>
+				<PlayerLayout.Header />
 
 				<PlayerLayout.Main>
 					{currentView === 'lobby' && <GameLobbyView />}

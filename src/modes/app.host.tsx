@@ -80,19 +80,25 @@ const App: React.FC = () => {
 		players,
 		bombHolderId,
 		winnerId,
+		controllerClientId,
 		questionGenerationStatus,
 		questionGenerationProgress,
-		questionPool
+		preparedQuestionCount
 	} = useSnapshot(globalStore.proxy);
 	const [theme, setTheme] = useState('General Knowledge');
 	const [language, setLanguage] = useState('English');
 	const [fuseDuration, setFuseDuration] = useState(30); // seconds
 	const [resetOnPass, setResetOnPass] = useState(true);
+	const [difficulty, setDifficulty] = useState(1);
+	const [trickyQuestions, setTrickyQuestions] = useState(false);
 
 	// Settings are disabled when generating or ready
 	const settingsDisabled =
 		questionGenerationStatus === 'generating' ||
 		questionGenerationStatus === 'ready';
+
+	const canControlGame =
+		controllerClientId === '' || controllerClientId === kmClient.id;
 
 	if (kmClient.clientContext.mode !== 'host') {
 		throw new Error('App host rendered in non-host mode');
@@ -228,6 +234,50 @@ const App: React.FC = () => {
 									</p>
 								</div>
 
+								<div>
+									<label className="text-game-text-muted block text-sm font-medium">
+										{config.difficultyLabel}
+									</label>
+									<div className="mt-1 flex items-center gap-3">
+										<input
+											type="range"
+											min={1}
+											max={5}
+											step={1}
+											value={difficulty}
+											onChange={(e) => setDifficulty(Number(e.target.value))}
+											disabled={settingsDisabled}
+											className="accent-game-primary h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
+										/>
+										<span className="text-game-text w-12 text-center font-mono text-lg font-bold">
+											{difficulty}
+										</span>
+									</div>
+									<p className="text-game-text-muted mt-1 text-xs">
+										{config.difficultyDescription}
+									</p>
+								</div>
+
+								<div>
+									<label
+										className={`text-game-text-muted flex items-center gap-3 text-sm font-medium ${settingsDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+									>
+										<input
+											type="checkbox"
+											checked={trickyQuestions}
+											onChange={(e) => setTrickyQuestions(e.target.checked)}
+											disabled={settingsDisabled}
+											className="accent-game-primary h-5 w-5 cursor-pointer rounded disabled:cursor-not-allowed"
+										/>
+										<span>{config.trickyQuestionsLabel}</span>
+									</label>
+									<p className="text-game-text-muted mt-1 text-xs">
+										{trickyQuestions
+											? config.trickyQuestionsDescriptionEnabled
+											: config.trickyQuestionsDescriptionDisabled}
+									</p>
+								</div>
+
 								{/* Phase 1: Idle - Show Prepare Game button */}
 								{questionGenerationStatus === 'idle' && (
 									<div className="flex flex-col gap-2">
@@ -237,14 +287,21 @@ const App: React.FC = () => {
 													theme,
 													language,
 													fuseDuration * 1000,
-													resetOnPass
+													resetOnPass,
+													difficulty,
+													trickyQuestions
 												)
 											}
 											className="bg-game-primary flex-1 rounded px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
-											disabled={Object.keys(players).length < 2}
+											disabled={
+												Object.keys(players).length < 2 || !canControlGame
+											}
 										>
-											Prepare Game
+											{config.prepareButton}
 											{Object.keys(players).length < 2 && ' (Need 2+ players)'}
+											{Object.keys(players).length >= 2 &&
+												!canControlGame &&
+												' (Controller host only)'}
 										</button>
 										{winnerId && (
 											<div className="text-xl font-bold text-green-400">
@@ -287,11 +344,12 @@ const App: React.FC = () => {
 								{questionGenerationStatus === 'ready' && (
 									<div className="flex flex-col gap-3">
 										<div className="text-center text-lg font-bold text-green-400">
-											{questionPool.length} questions ready!
+											{preparedQuestionCount} questions ready!
 										</div>
 										<button
 											onClick={() => gameActions.startGame()}
 											className="bg-game-primary rounded px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-600"
+											disabled={!canControlGame}
 										>
 											{config.startButton}
 										</button>

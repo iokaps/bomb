@@ -7,6 +7,7 @@ import { useSnapshot } from 'valtio';
 // Module-level refs to prevent issues with React Strict Mode double-mounting
 let activeWorker: Worker | null = null;
 let isHandlingExplosion = false;
+let isHandlingPendingAnswer = false;
 
 export function useGlobalController() {
 	// Only the host should control the global logic
@@ -133,7 +134,19 @@ export function useGlobalController() {
 
 		worker.onmessage = () => {
 			const serverTime = kmClient.serverTimestamp();
-			const { started, bombExplosionTime } = globalStore.proxy;
+			const { started, bombExplosionTime, pendingAnswer } = globalStore.proxy;
+
+			if (started && pendingAnswer && !isHandlingPendingAnswer) {
+				isHandlingPendingAnswer = true;
+				gameActions
+					.handlePendingAnswer()
+					.catch((err) => {
+						console.error('Pending answer handling failed:', err);
+					})
+					.finally(() => {
+						isHandlingPendingAnswer = false;
+					});
+			}
 
 			if (started && bombExplosionTime && serverTime >= bombExplosionTime) {
 				// Safety valve: If overdue by more than 10 seconds, force unlock

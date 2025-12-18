@@ -25,10 +25,24 @@ export const schema = z.object({
 		.string()
 		.default('Timer continues counting down when passed (hot potato style).'),
 
+	difficultyLabel: z.string().default('Difficulty'),
+	difficultyDescription: z
+		.string()
+		.default('1 = Easy, 5 = Extreme. Does not change timer settings.'),
+
+	trickyQuestionsLabel: z.string().default('Tricky Questions'),
+	trickyQuestionsDescriptionEnabled: z
+		.string()
+		.default('Uses more plausible distractors and common misconceptions.'),
+	trickyQuestionsDescriptionDisabled: z
+		.string()
+		.default('Standard multiple-choice questions.'),
+
 	players: z.string().default('Players'),
 	timeElapsed: z.string().default('Time elapsed'),
 	startButton: z.string().default('Start Game'),
 	stopButton: z.string().default('Stop Game'),
+	prepareButton: z.string().default('Prepare Game'),
 	loading: z.string().default('Loading...'),
 
 	menuTitle: z.string().default('Menu'),

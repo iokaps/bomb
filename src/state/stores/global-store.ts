@@ -9,9 +9,11 @@ export interface Question {
 
 export interface PendingGameSettings {
 	theme: string;
+	difficulty: number;
 	language: string;
 	fuseDuration: number;
 	resetOnPass: boolean;
+	trickyQuestions: boolean;
 }
 
 export interface GlobalState {
@@ -26,6 +28,13 @@ export interface GlobalState {
 	questionGenerationStatus: 'idle' | 'generating' | 'ready' | 'failed';
 	questionGenerationProgress: { current: number; total: number };
 	pendingGameSettings: PendingGameSettings | null;
+	preparedQuestionCount: number; // Total questions prepared for this game (host-controller cache)
+	pendingAnswer: {
+		clientId: string;
+		questionId: string;
+		answer: string;
+		submittedAt: number;
+	} | null;
 
 	// Simplified timer settings
 	fuseDuration: number; // Initial fuse duration in ms (10000-60000)
@@ -36,8 +45,9 @@ export interface GlobalState {
 	bombExplosionTime: number | null;
 	currentFuseDuration: number;
 	currentQuestion: Question | null;
-	questionPool: Question[]; // All pre-generated questions for this game
-	playerSeenQuestions: Record<string, string[]>; // playerId -> array of questionIds they've seen
+	questionPool: Record<string, Question>; // Deprecated: do not sync full pool (kept for backwards compatibility)
+	questionOrder: string[]; // Deprecated: avoid syncing ids; use preparedQuestionCount
+	playerSeenQuestions: Record<string, Record<string, true>>; // playerId -> set of seen questionIds
 	playerStatus: Record<string, 'alive' | 'eliminated'>;
 	winnerId: string | null;
 
@@ -52,12 +62,13 @@ export interface GlobalState {
 			closeCalls: number; // passes with < 5s left
 		}
 	>;
-	eliminationOrder: string[]; // IDs of players in order of elimination
+	eliminationOrder: Record<string, string>; // key (time-unique) -> playerId, in elimination order
 
 	gameSettings: {
 		theme: string;
 		difficulty: number;
 		language: string;
+		trickyQuestions: boolean;
 	};
 }
 
@@ -73,6 +84,8 @@ const initialState: GlobalState = {
 	questionGenerationStatus: 'idle',
 	questionGenerationProgress: { current: 0, total: 0 },
 	pendingGameSettings: null,
+	preparedQuestionCount: 0,
+	pendingAnswer: null,
 
 	fuseDuration: 30000, // 30 seconds default
 	resetOnPass: true, // Reset timer on pass by default
@@ -80,18 +93,20 @@ const initialState: GlobalState = {
 	bombExplosionTime: null,
 	currentFuseDuration: 30000,
 	currentQuestion: null,
-	questionPool: [],
+	questionPool: {},
+	questionOrder: [],
 	playerSeenQuestions: {},
 	playerStatus: {},
 	winnerId: null,
 
 	playerStats: {},
-	eliminationOrder: [],
+	eliminationOrder: {},
 
 	gameSettings: {
 		theme: 'General Knowledge',
 		difficulty: 1,
-		language: 'English'
+		language: 'English',
+		trickyQuestions: false
 	}
 };
 
