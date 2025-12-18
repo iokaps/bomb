@@ -13,8 +13,17 @@ export const schema = z.object({
 	howToPlayMd: z
 		.string()
 		.default(
-			"# How to Play Bomb\n\n**Objective:** Don't be holding the bomb when it explodes!\n\n1. **Join:** Players scan the QR code to join the game.\n2. **Start:** The Host selects a theme and starts the game.\n3. **The Bomb:** One player starts with the bomb.\n4. **Pass It:** To pass the bomb, you must answer a trivia question correctly.\n5. **Explosion:** The bomb explodes after a random time (30-60s). The holder is eliminated.\n6. **Accelerating Fuse:** With every pass, the fuse gets shorter!\n7. **Winner:** The last player alive wins!\n\n## Game Modes\n\n- **Accelerating Fuse:** Fuse starts at 30s and gets shorter by 2s every pass (min 5s).\n- **Classic (Hot Potato):** Global random timer (45-90s). Passing doesn't change the timer.\n- **Shot Clock:** Timer resets to 15s on every pass.\n- **Chaos Mode:** Fuse resets to a random duration (5-25s) on every pass."
+			"# How to Play Bomb\n\n**Objective:** Don't be holding the bomb when it explodes!\n\n1. **Join:** Players scan the QR code to join the game.\n2. **Start:** The Host selects a theme, fuse duration, and timer settings.\n3. **The Bomb:** One player starts with the bomb.\n4. **Pass It:** To pass the bomb, you must answer a trivia question correctly.\n5. **Explosion:** The bomb explodes when the timer runs out. The holder is eliminated.\n6. **Winner:** The last player alive wins!\n\n## Timer Settings\n\n- **Fuse Duration:** How long the bomb timer lasts (10-60 seconds).\n- **Reset on Pass:** When enabled, the timer resets each time the bomb is passed. When disabled, the timer keeps counting down (hot potato style)."
 		),
+
+	fuseDurationLabel: z.string().default('Fuse Duration'),
+	resetOnPassLabel: z.string().default('Reset Timer on Pass'),
+	resetOnPassDescriptionEnabled: z
+		.string()
+		.default('Timer will reset when the bomb is passed.'),
+	resetOnPassDescriptionDisabled: z
+		.string()
+		.default('Timer continues counting down when passed (hot potato style).'),
 
 	players: z.string().default('Players'),
 	timeElapsed: z.string().default('Time elapsed'),

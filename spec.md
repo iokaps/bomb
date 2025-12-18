@@ -10,12 +10,14 @@
 - **Presenter**: Displays the main game arena, timer, player status, and leaderboard on a shared screen.
 - **Player**: Participates in the game using their personal device to answer questions.
 
-## Game Modes
+## Timer Settings
 
-1. **Accelerating Fuse**: Fuse starts at 30s and gets shorter by 2s every pass (min 5s).
-2. **Classic (Hot Potato)**: Global random timer (45-90s). Passing doesn't change the timer.
-3. **Shot Clock**: Timer resets to 15s on every pass.
-4. **Chaos Mode**: Fuse resets to a random duration (5-25s) on every pass.
+The host can configure two simple settings:
+
+1. **Fuse Duration** (10-60 seconds): How long the bomb timer lasts before exploding.
+2. **Reset on Pass** (toggle):
+   - **Enabled**: Timer resets to the fuse duration when the bomb is passed.
+   - **Disabled**: Timer continues counting down (hot potato style).
 
 ## Core Gameplay Loop
 

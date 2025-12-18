@@ -7,12 +7,12 @@ export interface Question {
 	correctAnswer: string;
 }
 
-export type GameMode =
-	| 'accelerating'
-	| 'classic'
-	| 'shot-clock'
-	| 'chaos'
-	| 'lightning';
+export interface PendingGameSettings {
+	theme: string;
+	language: string;
+	fuseDuration: number;
+	resetOnPass: boolean;
+}
 
 export interface GlobalState {
 	controllerClientId: string;
@@ -21,14 +21,23 @@ export interface GlobalState {
 	startTimestamp: number;
 	countdownEndTime: number | null; // Timestamp when countdown ends and game begins
 	players: Record<string, { name: string; photoUrl?: string }>;
-	gameMode: GameMode;
+
+	// Question generation phase
+	questionGenerationStatus: 'idle' | 'generating' | 'ready' | 'failed';
+	questionGenerationProgress: { current: number; total: number };
+	pendingGameSettings: PendingGameSettings | null;
+
+	// Simplified timer settings
+	fuseDuration: number; // Initial fuse duration in ms (10000-60000)
+	resetOnPass: boolean; // Whether timer resets when bomb is passed
 
 	// Bomb Game State
 	bombHolderId: string | null;
 	bombExplosionTime: number | null;
 	currentFuseDuration: number;
 	currentQuestion: Question | null;
-	questionQueue: Question[];
+	questionPool: Question[]; // All pre-generated questions for this game
+	playerSeenQuestions: Record<string, string[]>; // playerId -> array of questionIds they've seen
 	playerStatus: Record<string, 'alive' | 'eliminated'>;
 	winnerId: string | null;
 
@@ -59,12 +68,20 @@ const initialState: GlobalState = {
 	startTimestamp: 0,
 	countdownEndTime: null,
 	players: {},
-	gameMode: 'accelerating',
+
+	// Question generation phase
+	questionGenerationStatus: 'idle',
+	questionGenerationProgress: { current: 0, total: 0 },
+	pendingGameSettings: null,
+
+	fuseDuration: 30000, // 30 seconds default
+	resetOnPass: true, // Reset timer on pass by default
 	bombHolderId: null,
 	bombExplosionTime: null,
 	currentFuseDuration: 30000,
 	currentQuestion: null,
-	questionQueue: [],
+	questionPool: [],
+	playerSeenQuestions: {},
 	playerStatus: {},
 	winnerId: null,
 

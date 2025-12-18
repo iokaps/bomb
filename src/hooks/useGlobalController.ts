@@ -157,13 +157,6 @@ export function useGlobalController() {
 						isHandlingExplosion = false;
 					});
 			}
-
-			// Replenish question queue if running low (non-blocking)
-			if (started && !isHandlingExplosion) {
-				gameActions.replenishQueueIfNeeded().catch((err) => {
-					console.error('Queue replenishment failed:', err);
-				});
-			}
 		};
 
 		worker.postMessage('start');

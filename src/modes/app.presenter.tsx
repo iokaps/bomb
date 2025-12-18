@@ -22,7 +22,9 @@ const App: React.FC = () => {
 		currentQuestion,
 		playerStats,
 		eliminationOrder,
-		countdownEndTime
+		countdownEndTime,
+		questionGenerationStatus,
+		questionGenerationProgress
 	} = useSnapshot(globalStore.proxy);
 
 	const [countdownSeconds, setCountdownSeconds] = React.useState(5);
@@ -102,7 +104,35 @@ const App: React.FC = () => {
 					{/* Center Stage: Question or Status */}
 					<div className="absolute z-10 flex h-full w-full flex-col items-center justify-center p-8 text-center">
 						<AnimatePresence mode="wait">
-							{countdownEndTime ? (
+							{questionGenerationStatus === 'generating' ? (
+								<motion.div
+									key="preparing"
+									initial={{ opacity: 0 }}
+									animate={{ opacity: 1 }}
+									exit={{ opacity: 0 }}
+									className="flex flex-col items-center gap-6"
+								>
+									<div className="text-game-text-muted text-2xl tracking-widest uppercase">
+										Preparing Questions
+									</div>
+									<div className="flex items-center gap-4">
+										<div className="h-3 w-64 overflow-hidden rounded-full bg-white/20">
+											<motion.div
+												className="bg-game-primary h-full"
+												initial={{ width: 0 }}
+												animate={{
+													width: `${questionGenerationProgress.total > 0 ? (questionGenerationProgress.current / questionGenerationProgress.total) * 100 : 0}%`
+												}}
+												transition={{ duration: 0.3 }}
+											/>
+										</div>
+										<span className="text-game-text text-xl font-bold">
+											{questionGenerationProgress.current}/
+											{questionGenerationProgress.total}
+										</span>
+									</div>
+								</motion.div>
+							) : countdownEndTime ? (
 								<motion.div
 									key="countdown"
 									initial={{ scale: 0.5, opacity: 0 }}

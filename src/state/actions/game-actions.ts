@@ -1,14 +1,95 @@
 import { kmClient } from '@/services/km-client';
-import {
-	globalStore,
-	type GameMode,
-	type Question
-} from '../stores/global-store';
+import { globalStore, type Question } from '../stores/global-store';
 import { playerStore } from '../stores/player-store';
 
 // Models to use for parallel question generation
 type AIModel = 'gemini-2.5-flash' | 'gpt-4o-mini';
 const AI_MODELS: AIModel[] = ['gemini-2.5-flash', 'gpt-4o-mini'];
+
+// Fallback questions used when AI fails or pool is exhausted
+const FALLBACK_QUESTIONS: Omit<Question, 'id'>[] = [
+	{
+		text: 'What is the capital of France?',
+		options: ['London', 'Berlin', 'Paris', 'Madrid'],
+		correctAnswer: 'Paris'
+	},
+	{
+		text: 'Which planet is known as the Red Planet?',
+		options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
+		correctAnswer: 'Mars'
+	},
+	{
+		text: 'What is 2 + 2?',
+		options: ['3', '4', '5', '6'],
+		correctAnswer: '4'
+	},
+	{
+		text: 'Who painted the Mona Lisa?',
+		options: ['Van Gogh', 'Da Vinci', 'Picasso', 'Rembrandt'],
+		correctAnswer: 'Da Vinci'
+	},
+	{
+		text: 'What is the largest ocean?',
+		options: ['Atlantic', 'Indian', 'Arctic', 'Pacific'],
+		correctAnswer: 'Pacific'
+	},
+	{
+		text: 'Which element has the symbol O?',
+		options: ['Gold', 'Oxygen', 'Silver', 'Iron'],
+		correctAnswer: 'Oxygen'
+	},
+	{
+		text: 'How many continents are there?',
+		options: ['5', '6', '7', '8'],
+		correctAnswer: '7'
+	},
+	{
+		text: 'What is the speed of light?',
+		options: ['Fast', 'Very Fast', 'Super Fast', '299,792 km/s'],
+		correctAnswer: '299,792 km/s'
+	},
+	{
+		text: 'Which animal is the king of the jungle?',
+		options: ['Tiger', 'Lion', 'Elephant', 'Giraffe'],
+		correctAnswer: 'Lion'
+	},
+	{
+		text: 'What is the boiling point of water?',
+		options: ['90°C', '100°C', '110°C', '120°C'],
+		correctAnswer: '100°C'
+	}
+];
+
+// Calculate how many questions to generate based on players and fuse duration
+function calculateQuestionCount(
+	playerCount: number,
+	fuseDurationMs: number
+): number {
+	// Average time to answer a question: ~5 seconds
+	const avgAnswerTime = 5000;
+
+	// Questions per bomb hold = fuse duration / answer time
+	const questionsPerHold = Math.ceil(fuseDurationMs / avgAnswerTime);
+
+	// Estimated rounds before game ends = players * 3 (multiple passes per elimination)
+	const estimatedRounds = playerCount * 3;
+
+	// Total with 50% buffer for wrong answers
+	const totalQuestions = Math.ceil(questionsPerHold * estimatedRounds * 1.5);
+
+	// Minimum 20, maximum 100 questions
+	return Math.max(20, Math.min(100, totalQuestions));
+}
+
+// Get a fallback question
+function getFallbackQuestion(): Question {
+	const fallback = FALLBACK_QUESTIONS[Date.now() % FALLBACK_QUESTIONS.length];
+	return {
+		id:
+			'fallback-' + Date.now() + '-' + Math.random().toString(36).substring(7),
+		...fallback
+	};
+}
 
 // Helper to generate questions from a single model
 async function generateQuestionsFromModel(
@@ -169,62 +250,10 @@ async function generateQuestions(
 
 	console.warn('All models failed, using fallback');
 
-	const fallbackPool = [
-		{
-			text: 'What is the capital of France?',
-			options: ['London', 'Berlin', 'Paris', 'Madrid'],
-			correctAnswer: 'Paris'
-		},
-		{
-			text: 'Which planet is known as the Red Planet?',
-			options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
-			correctAnswer: 'Mars'
-		},
-		{
-			text: 'What is 2 + 2?',
-			options: ['3', '4', '5', '6'],
-			correctAnswer: '4'
-		},
-		{
-			text: 'Who painted the Mona Lisa?',
-			options: ['Van Gogh', 'Da Vinci', 'Picasso', 'Rembrandt'],
-			correctAnswer: 'Da Vinci'
-		},
-		{
-			text: 'What is the largest ocean?',
-			options: ['Atlantic', 'Indian', 'Arctic', 'Pacific'],
-			correctAnswer: 'Pacific'
-		},
-		{
-			text: 'Which element has the symbol O?',
-			options: ['Gold', 'Oxygen', 'Silver', 'Iron'],
-			correctAnswer: 'Oxygen'
-		},
-		{
-			text: 'How many continents are there?',
-			options: ['5', '6', '7', '8'],
-			correctAnswer: '7'
-		},
-		{
-			text: 'What is the speed of light?',
-			options: ['Fast', 'Very Fast', 'Super Fast', '299,792 km/s'],
-			correctAnswer: '299,792 km/s'
-		},
-		{
-			text: 'Which animal is the king of the jungle?',
-			options: ['Tiger', 'Lion', 'Elephant', 'Giraffe'],
-			correctAnswer: 'Lion'
-		},
-		{
-			text: 'What is the boiling point of water?',
-			options: ['90°C', '100°C', '110°C', '120°C'],
-			correctAnswer: '100°C'
-		}
-	];
-
-	// Fallback questions
+	// Fallback questions using the shared pool
 	return Array.from({ length: count }).map((_, i) => {
-		const fallback = fallbackPool[(Date.now() + i) % fallbackPool.length];
+		const fallback =
+			FALLBACK_QUESTIONS[(Date.now() + i) % FALLBACK_QUESTIONS.length];
 		return {
 			id: 'fallback-' + Date.now() + '-' + i,
 			text: fallback.text,
@@ -234,149 +263,169 @@ async function generateQuestions(
 	});
 }
 
-// Helper to get next question SYNCHRONOUSLY from queue, or return a fallback
-function getNextQuestionSync(): Question {
+// Select a random question the player hasn't seen yet
+function selectQuestionForPlayer(playerId: string): Question {
 	const state = globalStore.proxy;
+	const seenIds = new Set(state.playerSeenQuestions[playerId] || []);
 
-	// Try to get from queue (will be popped in transaction)
-	if (state.questionQueue.length > 0) {
-		// Return first item - actual removal happens in transaction
-		return state.questionQueue[0];
+	// Filter to unseen questions
+	const unseenQuestions = state.questionPool.filter((q) => !seenIds.has(q.id));
+
+	// If player has seen all questions, use full pool (will reset history in transaction)
+	const availableQuestions =
+		unseenQuestions.length > 0 ? unseenQuestions : state.questionPool;
+
+	if (availableQuestions.length === 0) {
+		// No questions in pool at all, use fallback
+		return getFallbackQuestion();
 	}
 
-	// Synchronous fallback - no AI, no waiting
-	const fallbackPool = [
-		{
-			text: 'What is the capital of France?',
-			options: ['London', 'Berlin', 'Paris', 'Madrid'],
-			correctAnswer: 'Paris'
-		},
-		{
-			text: 'Which planet is known as the Red Planet?',
-			options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
-			correctAnswer: 'Mars'
-		},
-		{
-			text: 'What is 2 + 2?',
-			options: ['3', '4', '5', '6'],
-			correctAnswer: '4'
-		},
-		{
-			text: 'Who painted the Mona Lisa?',
-			options: ['Van Gogh', 'Da Vinci', 'Picasso', 'Rembrandt'],
-			correctAnswer: 'Da Vinci'
-		},
-		{
-			text: 'What is the largest ocean?',
-			options: ['Atlantic', 'Indian', 'Arctic', 'Pacific'],
-			correctAnswer: 'Pacific'
-		}
-	];
-
-	const fallback = fallbackPool[Date.now() % fallbackPool.length];
-	return {
-		id: 'fallback-' + Date.now(),
-		text: fallback.text,
-		options: fallback.options,
-		correctAnswer: fallback.correctAnswer
-	};
+	// Pick random question
+	const randomIndex = Math.floor(Math.random() * availableQuestions.length);
+	return availableQuestions[randomIndex];
 }
-
-// Helper to get next question (from queue or fallback to fetch)
-async function getNextQuestion(): Promise<Question> {
-	const state = globalStore.proxy;
-
-	// Try to pop from queue first
-	if (state.questionQueue.length > 0) {
-		let nextQ: Question | null = null;
-		await kmClient.transact([globalStore], ([s]) => {
-			nextQ = s.questionQueue.shift() || null;
-		});
-		if (nextQ) {
-			return nextQ;
-		}
-	}
-
-	// Fallback if queue is empty - generate on-demand
-	console.warn('Question queue exhausted - generating on-demand');
-	const questions = await generateQuestions(
-		state.gameSettings.theme,
-		state.gameSettings.difficulty,
-		state.gameSettings.language,
-		1,
-		new Set() // No avoidance in fallback
-	);
-	return questions[0];
-}
-
-// Minimum queue size before replenishment is triggered
-const MIN_QUEUE_SIZE = 5;
-
-// Lock to prevent concurrent replenishment
-let isReplenishing = false;
 
 export const gameActions = {
-	// Called by host to replenish question queue if running low
-	async replenishQueueIfNeeded() {
-		// Prevent concurrent replenishment calls
-		if (isReplenishing) return;
+	/**
+	 * Phase 1: Prepare the game by generating all questions
+	 * This should be called before startGame()
+	 */
+	async prepareGame(
+		theme: string,
+		language: string = 'English',
+		fuseDuration: number = 30000,
+		resetOnPass: boolean = true
+	) {
+		const playerCount = Object.keys(globalStore.proxy.players).length;
+		const questionCount = calculateQuestionCount(playerCount, fuseDuration);
 
-		const state = globalStore.proxy;
-		if (!state.started || state.winnerId) return;
-		if (state.questionQueue.length >= MIN_QUEUE_SIZE) return;
+		console.log(
+			`Preparing game: generating ${questionCount} questions for ${playerCount} players (fuse: ${fuseDuration}ms)...`
+		);
 
-		isReplenishing = true;
+		// 1. Set up generation state and store pending settings
+		await kmClient.transact([globalStore], ([state]) => {
+			state.questionGenerationStatus = 'generating';
+			state.questionGenerationProgress = { current: 0, total: questionCount };
+			state.pendingGameSettings = {
+				theme,
+				language,
+				fuseDuration,
+				resetOnPass
+			};
+			state.questionPool = [];
+			state.gameSettings.theme = theme;
+			state.gameSettings.language = language;
+		});
+
+		// 2. Generate questions in batches
+		const avoidSet = new Set<string>();
+		const allQuestions: Question[] = [];
+		const batchSize = 15;
+		const batches = Math.ceil(questionCount / batchSize);
 
 		try {
-			const existingQuestions = new Set(
-				state.questionQueue.map((q) => q.text.toLowerCase())
-			);
-
-			const newQuestions = await generateQuestions(
-				state.gameSettings.theme,
-				state.gameSettings.difficulty,
-				state.gameSettings.language,
-				10,
-				existingQuestions
-			);
-
-			await kmClient.transact([globalStore], ([s]) => {
-				// Only add if still needed
-				if (s.questionQueue.length < MIN_QUEUE_SIZE) {
-					s.questionQueue.push(...newQuestions);
-					console.log(
-						`Replenished queue: added ${newQuestions.length}, total: ${s.questionQueue.length}`
-					);
+			for (let i = 0; i < batches; i++) {
+				// Check if preparation was cancelled
+				if (globalStore.proxy.questionGenerationStatus !== 'generating') {
+					console.log('Question generation cancelled');
+					return;
 				}
+
+				const remaining = questionCount - allQuestions.length;
+				const toGenerate = Math.min(batchSize, remaining);
+
+				const batch = await generateQuestions(
+					theme,
+					1, // Start with easy
+					language,
+					toGenerate,
+					avoidSet
+				);
+				batch.forEach((q) => {
+					allQuestions.push(q);
+					avoidSet.add(q.text);
+				});
+
+				// Update progress
+				await kmClient.transact([globalStore], ([state]) => {
+					state.questionGenerationProgress = {
+						current: allQuestions.length,
+						total: questionCount
+					};
+				});
+
+				console.log(
+					`Generated batch ${i + 1}/${batches}: ${allQuestions.length}/${questionCount} questions`
+				);
+			}
+
+			// 3. Mark as ready and store questions
+			await kmClient.transact([globalStore], ([state]) => {
+				state.questionPool = allQuestions;
+				state.questionGenerationStatus = 'ready';
 			});
-		} finally {
-			isReplenishing = false;
+
+			console.log(
+				`Question generation complete: ${allQuestions.length} questions ready`
+			);
+		} catch (err) {
+			console.error('Error generating questions:', err);
+			await kmClient.transact([globalStore], ([state]) => {
+				state.questionGenerationStatus = 'failed';
+			});
+			throw err;
 		}
 	},
 
-	async startGame(
-		theme: string,
-		language: string = 'English',
-		gameMode: GameMode = 'accelerating'
-	) {
-		const COUNTDOWN_DURATION = 10000; // 10 seconds
+	/**
+	 * Cancel the preparation phase and reset to idle
+	 */
+	async cancelPreparation() {
+		await kmClient.transact([globalStore], ([state]) => {
+			state.questionGenerationStatus = 'idle';
+			state.questionGenerationProgress = { current: 0, total: 0 };
+			state.pendingGameSettings = null;
+			state.questionPool = [];
+		});
+		console.log('Preparation cancelled');
+	},
+
+	/**
+	 * Phase 2: Start the game (assumes questions are already prepared)
+	 */
+	async startGame() {
+		const COUNTDOWN_DURATION = 5000; // 5 seconds
+
+		// Validate that questions are ready
+		const { questionGenerationStatus, pendingGameSettings, questionPool } =
+			globalStore.proxy;
+
+		if (questionGenerationStatus !== 'ready' || !pendingGameSettings) {
+			throw new Error('Cannot start game: questions not prepared');
+		}
+
+		if (questionPool.length === 0) {
+			throw new Error('Cannot start game: no questions in pool');
+		}
+
+		const { fuseDuration, resetOnPass } = pendingGameSettings;
 
 		// 1. Set up game state with countdown
 		await kmClient.transact([globalStore], ([state]) => {
 			state.started = true;
 			state.startTimestamp = kmClient.serverTimestamp();
 			state.countdownEndTime = kmClient.serverTimestamp() + COUNTDOWN_DURATION;
-			state.gameSettings.theme = theme;
-			state.gameSettings.language = language;
 			state.gameSettings.difficulty = 1;
-			state.gameMode = gameMode;
+			state.fuseDuration = fuseDuration;
+			state.resetOnPass = resetOnPass;
 			state.winnerId = null;
 
 			// Clear bomb state during countdown
 			state.bombHolderId = null;
 			state.bombExplosionTime = null;
 			state.currentQuestion = null;
-			state.questionQueue = [];
+			state.playerSeenQuestions = {};
 
 			// Initialize all players as alive
 			const playerIds = Object.keys(state.players);
@@ -386,6 +435,7 @@ export const gameActions = {
 
 			playerIds.forEach((id) => {
 				state.playerStatus[id] = 'alive';
+				state.playerSeenQuestions[id] = [];
 				state.playerStats[id] = {
 					questionsAnswered: 0,
 					bombHoldTime: 0,
@@ -394,43 +444,20 @@ export const gameActions = {
 					closeCalls: 0
 				};
 			});
+
+			// Clear preparation state
+			state.questionGenerationStatus = 'idle';
+			state.questionGenerationProgress = { current: 0, total: 0 };
+			state.pendingGameSettings = null;
 		});
 
-		// 2. Generate questions during countdown (runs in parallel with countdown)
-		const avoidSet = new Set<string>();
-		const initialQuestions: Question[] = [];
+		// 2. Wait for countdown to finish
+		await new Promise((resolve) => setTimeout(resolve, COUNTDOWN_DURATION));
 
-		// Generate 20 questions upfront (enough for most games)
-		for (let i = 0; i < 2; i++) {
-			const batch = await generateQuestions(
-				theme,
-				1, // Start with easy
-				language,
-				10,
-				avoidSet
-			);
-			batch.forEach((q) => {
-				initialQuestions.push(q);
-				avoidSet.add(q.text);
-			});
-		}
-
-		// 3. Wait for countdown to finish (if questions generated faster)
-		const now = kmClient.serverTimestamp();
-		const countdownEnd = globalStore.proxy.countdownEndTime || now;
-		const remainingWait = countdownEnd - now;
-		if (remainingWait > 0) {
-			await new Promise((resolve) => setTimeout(resolve, remainingWait));
-		}
-
-		// 4. Start the actual game - assign bomb holder and start timer
+		// 3. Start the actual game - assign bomb holder and select first question
 		await kmClient.transact([globalStore], ([state]) => {
 			// Clear countdown
 			state.countdownEndTime = null;
-
-			// Add questions to queue
-			state.questionQueue = initialQuestions;
-			state.currentQuestion = state.questionQueue.shift() || null;
 
 			// Pick random bomb holder
 			const playerIds = Object.keys(state.players).filter(
@@ -439,6 +466,12 @@ export const gameActions = {
 			if (playerIds.length > 0) {
 				const randomIndex = Math.floor(Math.random() * playerIds.length);
 				state.bombHolderId = playerIds[randomIndex];
+
+				// Select first question for bomb holder (unseen by them)
+				const firstQuestion = selectQuestionForPlayer(state.bombHolderId);
+				state.currentQuestion = firstQuestion;
+				state.playerSeenQuestions[state.bombHolderId].push(firstQuestion.id);
+
 				// Start tracking hold time
 				if (state.playerStats[state.bombHolderId]) {
 					state.playerStats[state.bombHolderId].bombHoldStart =
@@ -446,38 +479,28 @@ export const gameActions = {
 				}
 			}
 
-			// Set explosion time based on mode
-			switch (state.gameMode) {
-				case 'classic':
-					// Random between 45s and 90s
-					state.currentFuseDuration = 45000 + Math.random() * 45000;
-					break;
-				case 'shot-clock':
-					state.currentFuseDuration = 15000;
-					break;
-				case 'chaos':
-					// Random between 5s and 25s
-					state.currentFuseDuration = 5000 + Math.random() * 20000;
-					break;
-				case 'lightning':
-					// Ultra-fast constant 8s fuse
-					state.currentFuseDuration = 8000;
-					break;
-				case 'accelerating':
-				default:
-					state.currentFuseDuration = 30000;
-					break;
-			}
-
+			// Set explosion time using configured fuse duration
+			state.currentFuseDuration = state.fuseDuration;
 			state.bombExplosionTime =
 				kmClient.serverTimestamp() + state.currentFuseDuration;
 		});
 	},
 
 	async passBomb() {
-		// Get next question synchronously to avoid delays
-		const nextQ = getNextQuestionSync();
-		const hasQueuedQuestion = globalStore.proxy.questionQueue.length > 0;
+		// Select question for new holder before transaction
+		const currentBombHolderId = globalStore.proxy.bombHolderId;
+		const alivePlayers = Object.entries(globalStore.proxy.playerStatus)
+			.filter(
+				([id, status]) => status === 'alive' && id !== currentBombHolderId
+			)
+			.map(([id]) => id);
+
+		// Pre-select next holder and their question
+		const nextHolderIndex = Math.floor(Math.random() * alivePlayers.length);
+		const nextHolderId = alivePlayers[nextHolderIndex];
+		const nextQuestion = nextHolderId
+			? selectQuestionForPlayer(nextHolderId)
+			: getFallbackQuestion();
 
 		await kmClient.transact([globalStore], ([state]) => {
 			const currentHolderId = state.bombHolderId;
@@ -500,54 +523,37 @@ export const gameActions = {
 				}
 			}
 
-			const alivePlayers = Object.entries(state.playerStatus)
-				.filter(
-					([id, status]) => status === 'alive' && id !== state.bombHolderId
-				)
-				.map(([id]) => id);
-
-			if (alivePlayers.length > 0) {
-				const randomIndex = Math.floor(Math.random() * alivePlayers.length);
-				state.bombHolderId = alivePlayers[randomIndex];
+			if (nextHolderId) {
+				state.bombHolderId = nextHolderId;
 
 				// Start tracking for new holder
 				if (state.playerStats[state.bombHolderId]) {
 					state.playerStats[state.bombHolderId].bombHoldStart = now;
 				}
 
-				// Update fuse based on game mode
-				switch (state.gameMode) {
-					case 'classic':
-						// Do not change explosion time
-						break;
-					case 'shot-clock':
-						state.currentFuseDuration = 15000;
-						state.bombExplosionTime = now + state.currentFuseDuration;
-						break;
-					case 'chaos':
-						// Random between 5s and 25s
-						state.currentFuseDuration = 5000 + Math.random() * 20000;
-						state.bombExplosionTime = now + state.currentFuseDuration;
-						break;
-					case 'lightning':
-						// Constant 8s fuse, no change on pass
-						break;
-					case 'accelerating':
-					default:
-						// Decrease duration by 2s (min 5s) and reset timer
-						state.currentFuseDuration = Math.max(
-							5000,
-							state.currentFuseDuration - 2000
-						);
-						state.bombExplosionTime = now + state.currentFuseDuration;
-						break;
+				// Update fuse based on resetOnPass setting
+				if (state.resetOnPass) {
+					// Reset timer to configured fuse duration
+					state.currentFuseDuration = state.fuseDuration;
+					state.bombExplosionTime = now + state.currentFuseDuration;
 				}
-			}
+				// If resetOnPass is false, timer continues counting down (hot potato style)
 
-			// Set new question and pop from queue if queued
-			state.currentQuestion = nextQ;
-			if (hasQueuedQuestion && state.questionQueue.length > 0) {
-				state.questionQueue.shift();
+				// Set new question for the new holder
+				state.currentQuestion = nextQuestion;
+
+				// Mark question as seen by new holder
+				if (!state.playerSeenQuestions[nextHolderId]) {
+					state.playerSeenQuestions[nextHolderId] = [];
+				}
+				// Reset seen list if they've seen all questions
+				if (
+					state.playerSeenQuestions[nextHolderId].length >=
+					state.questionPool.length
+				) {
+					state.playerSeenQuestions[nextHolderId] = [];
+				}
+				state.playerSeenQuestions[nextHolderId].push(nextQuestion.id);
 			}
 		});
 	},
@@ -585,28 +591,44 @@ export const gameActions = {
 				state.lastAnsweredQuestionId = questionId;
 			});
 		} else {
-			// Incorrect answer: Generate new question for same player
-			// Use sync version to avoid delays - queue replenishment happens in background
-			const nextQuestion = getNextQuestionSync();
-			const hasQueuedQuestion = globalStore.proxy.questionQueue.length > 0;
+			// Incorrect answer: Select new question for same player (unseen by them)
+			const nextQuestion = selectQuestionForPlayer(bombHolderId);
 
 			await kmClient.transact(
 				[globalStore, playerStore],
 				([globalState, playerState]) => {
 					globalState.currentQuestion = nextQuestion;
-					// Pop from queue if we took from it
-					if (hasQueuedQuestion && globalState.questionQueue.length > 0) {
-						globalState.questionQueue.shift();
+
+					// Mark question as seen by current holder
+					if (!globalState.playerSeenQuestions[bombHolderId]) {
+						globalState.playerSeenQuestions[bombHolderId] = [];
 					}
+					// Reset seen list if they've seen all questions
+					if (
+						globalState.playerSeenQuestions[bombHolderId].length >=
+						globalState.questionPool.length
+					) {
+						globalState.playerSeenQuestions[bombHolderId] = [];
+					}
+					globalState.playerSeenQuestions[bombHolderId].push(nextQuestion.id);
+
 					playerState.selectedOption = null;
 				}
 			);
 		}
 	},
 	async handleExplosion() {
-		// Get next question BEFORE transaction to avoid any async delays
-		const nextQuestion = getNextQuestionSync();
-		const hasQueuedQuestion = globalStore.proxy.questionQueue.length > 0;
+		// Pre-calculate next holder and their question before transaction
+		const alivePlayers = Object.entries(globalStore.proxy.playerStatus)
+			.filter(([, status]) => status === 'alive')
+			.filter(([id]) => id !== globalStore.proxy.bombHolderId)
+			.map(([id]) => id);
+
+		const nextHolderIndex = Math.floor(Math.random() * alivePlayers.length);
+		const nextHolderId = alivePlayers[nextHolderIndex];
+		const nextQuestion = nextHolderId
+			? selectQuestionForPlayer(nextHolderId)
+			: null;
 
 		try {
 			await kmClient.transact([globalStore], ([state]) => {
@@ -633,14 +655,14 @@ export const gameActions = {
 					}
 				}
 
-				const alivePlayers = Object.entries(state.playerStatus)
+				const remainingPlayers = Object.entries(state.playerStatus)
 					.filter(([, status]) => status === 'alive')
 					.map(([id]) => id);
 
-				if (alivePlayers.length <= 1) {
+				if (remainingPlayers.length <= 1) {
 					// Game Over
 					state.started = false;
-					state.winnerId = alivePlayers[0] || null;
+					state.winnerId = remainingPlayers[0] || null;
 
 					// Add winner to elimination order (last one standing)
 					if (state.winnerId) {
@@ -650,44 +672,34 @@ export const gameActions = {
 					state.bombHolderId = null;
 					state.bombExplosionTime = null;
 					state.currentQuestion = null;
-				} else {
+				} else if (nextHolderId && nextQuestion) {
 					// Continue Game
-					// Pick new holder from alive players
-					const randomIndex = Math.floor(Math.random() * alivePlayers.length);
-					state.bombHolderId = alivePlayers[randomIndex];
+					state.bombHolderId = nextHolderId;
 
 					// Start tracking for new holder
 					if (state.playerStats[state.bombHolderId]) {
 						state.playerStats[state.bombHolderId].bombHoldStart = now;
 					}
 
-					// Reset timer based on mode
-					switch (state.gameMode) {
-						case 'classic':
-							state.currentFuseDuration = 45000 + Math.random() * 45000;
-							break;
-						case 'shot-clock':
-							state.currentFuseDuration = 15000;
-							break;
-						case 'chaos':
-							state.currentFuseDuration = 5000 + Math.random() * 20000;
-							break;
-						case 'lightning':
-							state.currentFuseDuration = 8000;
-							break;
-						case 'accelerating':
-						default:
-							state.currentFuseDuration = 30000;
-							break;
-					}
-
+					// Reset timer to configured fuse duration
+					state.currentFuseDuration = state.fuseDuration;
 					state.bombExplosionTime = now + state.currentFuseDuration;
 
-					// Set new question and pop from queue if it was queued
+					// Set new question for the new holder
 					state.currentQuestion = nextQuestion;
-					if (hasQueuedQuestion && state.questionQueue.length > 0) {
-						state.questionQueue.shift();
+
+					// Mark question as seen by new holder
+					if (!state.playerSeenQuestions[nextHolderId]) {
+						state.playerSeenQuestions[nextHolderId] = [];
 					}
+					// Reset seen list if they've seen all questions
+					if (
+						state.playerSeenQuestions[nextHolderId].length >=
+						state.questionPool.length
+					) {
+						state.playerSeenQuestions[nextHolderId] = [];
+					}
+					state.playerSeenQuestions[nextHolderId].push(nextQuestion.id);
 				}
 			});
 		} catch (err) {
@@ -702,7 +714,13 @@ export const gameActions = {
 			state.bombHolderId = null;
 			state.bombExplosionTime = null;
 			state.currentQuestion = null;
-			state.questionQueue = [];
+			state.questionPool = [];
+			state.playerSeenQuestions = {};
+
+			// Reset preparation state
+			state.questionGenerationStatus = 'idle';
+			state.questionGenerationProgress = { current: 0, total: 0 };
+			state.pendingGameSettings = null;
 		});
 	}
 };

@@ -10,23 +10,24 @@ gameLobbyMd: |
 howToPlayMd: |
   # How to Play Bomb
 
-  ## Available Game Modes
-
-  - **Accelerating Fuse:** Fuse starts at 30s and gets shorter by 2s every pass (min 5s).
-  - **Classic (Hot Potato):** Global random timer (45-90s). Passing doesn't change the timer.
-  - **Shot Clock:** Timer resets to 15s on every pass.
-  - **Chaos Mode:** Fuse resets to a random duration (5-25s) on every pass.
-  - **Lightning Round ⚡:** Ultra-fast 8s constant fuse. No changes on pass. Pure speed!
-
   **Objective:** Don't be holding the bomb when it explodes!
 
   1. **Join:** Players scan the QR code to join the game.
-  2. **Start:** The Host selects a theme and starts the game.
+  2. **Start:** The Host selects a theme, fuse duration, and timer settings.
   3. **The Bomb:** One player starts with the bomb.
   4. **Pass It:** To pass the bomb, you must answer a trivia question correctly.
-  5. **Explosion:** The bomb explodes after a random time (30-60s). The holder is eliminated.
-  6. **Accelerating Fuse:** With every pass, the fuse gets shorter!
-  7. **Winner:** The last player alive wins!
+  5. **Explosion:** The bomb explodes when the timer runs out. The holder is eliminated.
+  6. **Winner:** The last player alive wins!
+
+  ## Timer Settings
+
+  - **Fuse Duration:** How long the bomb timer lasts (10-60 seconds).
+  - **Reset on Pass:** When enabled, the timer resets each time the bomb is passed. When disabled, the timer keeps counting down (hot potato style).
+
+fuseDurationLabel: 'Fuse Duration'
+resetOnPassLabel: 'Reset Timer on Pass'
+resetOnPassDescriptionEnabled: 'Timer will reset when the bomb is passed.'
+resetOnPassDescriptionDisabled: 'Timer continues counting down when passed (hot potato style).'
 
 players: 'Players'
 timeElapsed: 'Time elapsed'
