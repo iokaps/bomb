@@ -56,6 +56,7 @@ export interface GlobalState {
 		string,
 		{
 			questionsAnswered: number;
+			bombReceives: number; // times player became bomb holder (for fair selection)
 			bombHoldTime: number; // in ms
 			bombHoldStart: number | null; // timestamp when they got the bomb
 			passes: number;

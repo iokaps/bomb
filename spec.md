@@ -29,14 +29,20 @@ The host can also configure question generation:
 ## Core Gameplay Loop
 
 1. **Lobby**: Players join via QR code or link.
-2. **Prepare**: Host selects theme, language, timer settings, and question settings, then prepares the game (questions are generated with progress shown).
+2. **Prepare**: Host selects theme, timer settings, and question settings, then prepares the game (questions are generated with progress shown).
+   - Question language is configured via `hostDefaultLanguage` in the config (no in-UI language selector).
 3. **Start**: Host starts the game, a short countdown plays, and the game begins.
 4. **The Bomb**: A random player is assigned the bomb.
 5. **Action**: The bomb holder must answer a trivia question.
-   - **Correct**: The bomb is passed to another random player.
+   - **Correct**: The bomb is passed to another player using a fair-random rule: the next holder is chosen randomly among the alive players who have received the bomb the fewest times so far.
    - **Incorrect**: A new question is presented.
 6. **Explosion**: If the fuse timer runs out, the bomb explodes, and the holder is eliminated.
 7. **Win Condition**: The game continues until only one player remains.
+
+## Late Joiners
+
+- Players who join after a round has started do not participate until the next round.
+- The presenter view only shows the round roster once the countdown/game is in progress.
 
 ## Technical Architecture
 

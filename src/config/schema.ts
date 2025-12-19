@@ -61,23 +61,8 @@ export const schema = z.object({
 	// host mode
 	hostGameControlsTitle: z.string().default('Game Controls'),
 	hostThemeLabel: z.string().default('Theme'),
-	hostLanguageLabel: z.string().default('Language'),
 	hostDefaultTheme: z.string().default('General Knowledge'),
 	hostDefaultLanguage: z.string().default('English'),
-	hostLanguageOptions: z
-		.array(z.string())
-		.default([
-			'English',
-			'Spanish',
-			'French',
-			'German',
-			'Italian',
-			'Portuguese',
-			'Japanese',
-			'Korean',
-			'Russian',
-			'Greek'
-		]),
 	hostPrepareNeedPlayersSuffix: z.string().default(' (Need 2+ players)'),
 	hostPrepareControllerOnlySuffix: z
 		.string()

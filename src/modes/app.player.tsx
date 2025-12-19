@@ -3,6 +3,7 @@ import { config } from '@/config';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { PlayerLayout } from '@/layouts/player';
+import { kmClient } from '@/services/km-client';
 import { playerActions } from '@/state/actions/player-actions';
 import { globalStore } from '@/state/stores/global-store';
 import { playerStore } from '@/state/stores/player-store';
@@ -17,20 +18,22 @@ import { useSnapshot } from 'valtio';
 const App: React.FC = () => {
 	const { title } = config;
 	const { name, currentView, hasPhoto } = useSnapshot(playerStore.proxy);
-	const { started, winnerId } = useSnapshot(globalStore.proxy);
+	const { started, winnerId, playerStatus } = useSnapshot(globalStore.proxy);
 	const [showCamera, setShowCamera] = React.useState(false);
+
+	const isRoundParticipant = Boolean(playerStatus[kmClient.id]);
 
 	useDocumentTitle(title);
 	useWakeLock();
 
 	React.useEffect(() => {
-		// While game start, force view to 'game', otherwise to 'lobby'
+		// During an active/finished round, only round participants enter the game view.
 		if (started || winnerId) {
-			playerActions.setCurrentView('game');
-		} else {
-			playerActions.setCurrentView('lobby');
+			playerActions.setCurrentView(isRoundParticipant ? 'game' : 'lobby');
+			return;
 		}
-	}, [started, winnerId]);
+		playerActions.setCurrentView('lobby');
+	}, [started, winnerId, isRoundParticipant]);
 
 	if (!name || (name && !hasPhoto && showCamera)) {
 		return (
@@ -54,7 +57,8 @@ const App: React.FC = () => {
 
 				<PlayerLayout.Main>
 					{currentView === 'lobby' && <GameLobbyView />}
-					{currentView === 'game' && <GameView />}
+					{currentView === 'game' && isRoundParticipant && <GameView />}
+					{currentView === 'game' && !isRoundParticipant && <GameLobbyView />}
 				</PlayerLayout.Main>
 
 				<PlayerLayout.Footer>

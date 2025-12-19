@@ -53,11 +53,30 @@ const App: React.FC = () => {
 		mode: 'player'
 	});
 
+	const rosterEntries = React.useMemo(() => {
+		const hasRoundRoster = Object.keys(playerStatus).length > 0;
+		const shouldUseRoundRoster =
+			started || Boolean(countdownEndTime) || !!winnerId;
+
+		if (shouldUseRoundRoster && hasRoundRoster) {
+			return Object.keys(playerStatus)
+				.map((id) => {
+					const player = players[id];
+					return player ? ([id, player] as const) : null;
+				})
+				.filter((entry): entry is readonly [string, (typeof players)[string]] =>
+					Boolean(entry)
+				);
+		}
+
+		return Object.entries(players);
+	}, [started, countdownEndTime, winnerId, playerStatus, players]);
+
 	// Separate players
-	const alivePlayers = Object.entries(players).filter(
+	const alivePlayers = rosterEntries.filter(
 		([id]) => playerStatus[id] !== 'eliminated'
 	);
-	const eliminatedPlayers = Object.entries(players).filter(
+	const eliminatedPlayers = rosterEntries.filter(
 		([id]) => playerStatus[id] === 'eliminated'
 	);
 
@@ -111,7 +130,7 @@ const App: React.FC = () => {
 				{/* Main Arena (Circle) */}
 				<div className="relative flex flex-1 items-center justify-center">
 					{/* Center Stage: Question or Status */}
-					<div className="absolute z-10 flex h-full w-full flex-col items-center justify-center p-8 text-center">
+					<div className="absolute z-40 flex h-full w-full flex-col items-center justify-center p-8 text-center">
 						<AnimatePresence mode="wait">
 							{questionGenerationStatus === 'generating' ? (
 								<motion.div
@@ -249,7 +268,7 @@ const App: React.FC = () => {
 									initial={{ opacity: 0, y: 20 }}
 									animate={{ opacity: 1, y: 0 }}
 									exit={{ opacity: 0, y: -20 }}
-									className="flex max-w-2xl flex-col gap-4"
+									className="bg-game-surface/95 flex w-full max-w-3xl flex-col gap-4 rounded-2xl border border-white/10 p-8 shadow-2xl backdrop-blur-xl"
 								>
 									<div className="text-game-text-muted text-sm tracking-widest uppercase">
 										{config.presenterCurrentQuestionLabel}
@@ -376,8 +395,16 @@ const App: React.FC = () => {
 									key={id}
 									className="flex items-center gap-2 opacity-50 grayscale transition-all hover:opacity-100 hover:grayscale-0"
 								>
-									<div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-xs text-white">
-										{player.name.charAt(0)}
+									<div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-white/10 text-xs text-white">
+										{player.photoUrl ? (
+											<img
+												src={player.photoUrl}
+												alt={player.name}
+												className="h-full w-full object-cover"
+											/>
+										) : (
+											player.name.charAt(0)
+										)}
 									</div>
 									<span className="text-sm text-white/70 line-through">
 										{player.name}

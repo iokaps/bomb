@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=./.kokimoki/schema.json
 
 # Translations
-title: 'Host Starter'
+title: 'Pass the Bomb'
 
 gameLobbyMd: |
   # Waiting for game to start...
@@ -60,20 +60,8 @@ helpDialogDescription: 'Game instructions and rules'
 # Host mode
 hostGameControlsTitle: 'Game Controls'
 hostThemeLabel: 'Theme'
-hostLanguageLabel: 'Language'
 hostDefaultTheme: 'General Knowledge'
 hostDefaultLanguage: 'English'
-hostLanguageOptions:
-  - 'English'
-  - 'Spanish'
-  - 'French'
-  - 'German'
-  - 'Italian'
-  - 'Portuguese'
-  - 'Japanese'
-  - 'Korean'
-  - 'Russian'
-  - 'Greek'
 hostPrepareNeedPlayersSuffix: ' (Need 2+ players)'
 hostPrepareControllerOnlySuffix: ' (Controller host only)'
 hostGeneratingQuestionsLabel: 'Generating questions...'

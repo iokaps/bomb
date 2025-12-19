@@ -1,11 +1,63 @@
 import { kmClient } from '@/services/km-client';
-import { globalStore, type Question } from '../stores/global-store';
+import {
+	globalStore,
+	type GlobalState,
+	type Question
+} from '../stores/global-store';
 import { playerStore } from '../stores/player-store';
 
 // Host-controller local cache (NOT synced). Keeping the full pool out of globalStore
 // prevents exceeding Yjs document limits.
 let preparedQuestionPool: Record<string, Question> = {};
 let preparedQuestionOrder: string[] = [];
+
+function normalizeAnswerText(text: string): string {
+	return text
+		.normalize('NFKC')
+		.trim()
+		.replace(/^["'“”‘’]+/, '')
+		.replace(/["'“”‘’]+$/, '')
+		.replace(/\s+/g, ' ')
+		.toLowerCase();
+}
+
+function sanitizeQuestion(question: Question): Question | null {
+	if (!question) {
+		return null;
+	}
+
+	const text = typeof question.text === 'string' ? question.text.trim() : '';
+	const options = Array.isArray(question.options)
+		? question.options.map((opt) => (typeof opt === 'string' ? opt.trim() : ''))
+		: [];
+	const correctAnswerRaw =
+		typeof question.correctAnswer === 'string'
+			? question.correctAnswer.trim()
+			: '';
+
+	if (!text || options.length !== 4 || options.some((opt) => !opt)) {
+		return null;
+	}
+	if (!correctAnswerRaw) {
+		return null;
+	}
+
+	// Ensure correctAnswer matches one of the options (after normalization).
+	const correctNorm = normalizeAnswerText(correctAnswerRaw);
+	const matchedOption = options.find(
+		(opt) => normalizeAnswerText(opt) === correctNorm
+	);
+	if (!matchedOption) {
+		return null;
+	}
+
+	return {
+		...question,
+		text,
+		options,
+		correctAnswer: matchedOption
+	};
+}
 
 function resetPreparedQuestions() {
 	preparedQuestionPool = {};
@@ -218,14 +270,17 @@ async function generateQuestionsFromModel(
 	}
 
 	// Validate structure
-	return questions.filter(
-		(q) =>
-			q &&
-			typeof q.text === 'string' &&
-			Array.isArray(q.options) &&
-			q.options.length === 4 &&
-			typeof q.correctAnswer === 'string'
-	);
+	return questions
+		.filter(
+			(q) =>
+				q &&
+				typeof q.text === 'string' &&
+				Array.isArray(q.options) &&
+				q.options.length === 4 &&
+				typeof q.correctAnswer === 'string'
+		)
+		.map((q) => sanitizeQuestion(q))
+		.filter((q): q is Question => Boolean(q));
 }
 
 // Helper to generate questions using multiple AI models in parallel
@@ -315,8 +370,10 @@ async function generateQuestions(
 }
 
 // Select a random question the player hasn't seen yet
-function selectQuestionForPlayer(playerId: string): Question {
-	const state = globalStore.proxy;
+function selectQuestionForPlayerFromState(
+	state: GlobalState,
+	playerId: string
+): Question {
 	const seenMap = state.playerSeenQuestions[playerId] || {};
 	const seenIds = new Set(Object.keys(seenMap));
 
@@ -339,6 +396,35 @@ function selectQuestionForPlayer(playerId: string): Question {
 	const randomIndex = Math.floor(Math.random() * availableIds.length);
 	const questionId = availableIds[randomIndex];
 	return pool[questionId] || getFallbackQuestion();
+}
+
+function selectQuestionForPlayer(playerId: string): Question {
+	return selectQuestionForPlayerFromState(globalStore.proxy, playerId);
+}
+
+function pickFairBombHolder(
+	state: GlobalState,
+	eligiblePlayerIds: string[]
+): string | null {
+	if (eligiblePlayerIds.length === 0) {
+		return null;
+	}
+
+	let minReceives = Number.POSITIVE_INFINITY;
+	for (const id of eligiblePlayerIds) {
+		const receives = state.playerStats[id]?.bombReceives ?? 0;
+		if (receives < minReceives) {
+			minReceives = receives;
+		}
+	}
+
+	const leastReceived = eligiblePlayerIds.filter(
+		(id) => (state.playerStats[id]?.bombReceives ?? 0) === minReceives
+	);
+	const candidates =
+		leastReceived.length > 0 ? leastReceived : eligiblePlayerIds;
+	const pickIndex = Math.floor(Math.random() * candidates.length);
+	return candidates[pickIndex] || null;
 }
 
 async function clearPendingAnswer() {
@@ -547,6 +633,7 @@ export const gameActions = {
 				state.playerSeenQuestions[id] = {};
 				state.playerStats[id] = {
 					questionsAnswered: 0,
+					bombReceives: 0,
 					bombHoldTime: 0,
 					bombHoldStart: null,
 					passes: 0,
@@ -568,22 +655,30 @@ export const gameActions = {
 			// Clear countdown
 			state.countdownEndTime = null;
 
-			// Pick random bomb holder
-			const playerIds = Object.keys(state.players).filter(
-				(id) => state.playerStatus[id] === 'alive'
-			);
-			if (playerIds.length > 0) {
-				const randomIndex = Math.floor(Math.random() * playerIds.length);
-				state.bombHolderId = playerIds[randomIndex];
+			// Pick fair-random initial bomb holder among round participants
+			const eligiblePlayerIds = Object.entries(state.playerStatus)
+				.filter(([, status]) => status === 'alive')
+				.map(([id]) => id);
+			const initialHolderId = pickFairBombHolder(state, eligiblePlayerIds);
+			if (initialHolderId) {
+				state.bombHolderId = initialHolderId;
+
+				// Increment receives counter
+				if (state.playerStats[initialHolderId]) {
+					state.playerStats[initialHolderId].bombReceives += 1;
+				}
 
 				// Select first question for bomb holder (unseen by them)
-				const firstQuestion = selectQuestionForPlayer(state.bombHolderId);
+				const firstQuestion = selectQuestionForPlayerFromState(
+					state,
+					initialHolderId
+				);
 				state.currentQuestion = firstQuestion;
-				state.playerSeenQuestions[state.bombHolderId][firstQuestion.id] = true;
+				state.playerSeenQuestions[initialHolderId][firstQuestion.id] = true;
 
 				// Start tracking hold time
-				if (state.playerStats[state.bombHolderId]) {
-					state.playerStats[state.bombHolderId].bombHoldStart =
+				if (state.playerStats[initialHolderId]) {
+					state.playerStats[initialHolderId].bombHoldStart =
 						kmClient.serverTimestamp();
 				}
 			}
@@ -599,20 +694,6 @@ export const gameActions = {
 		if (!isHostController()) {
 			return;
 		}
-		// Select question for new holder before transaction
-		const currentBombHolderId = globalStore.proxy.bombHolderId;
-		const alivePlayers = Object.entries(globalStore.proxy.playerStatus)
-			.filter(
-				([id, status]) => status === 'alive' && id !== currentBombHolderId
-			)
-			.map(([id]) => id);
-
-		// Pre-select next holder and their question
-		const nextHolderIndex = Math.floor(Math.random() * alivePlayers.length);
-		const nextHolderId = alivePlayers[nextHolderIndex];
-		const nextQuestion = nextHolderId
-			? selectQuestionForPlayer(nextHolderId)
-			: getFallbackQuestion();
 
 		await kmClient.transact([globalStore], ([state]) => {
 			const currentHolderId = state.bombHolderId;
@@ -635,38 +716,53 @@ export const gameActions = {
 				}
 			}
 
-			if (nextHolderId) {
-				state.bombHolderId = nextHolderId;
-
-				// Start tracking for new holder
-				if (state.playerStats[state.bombHolderId]) {
-					state.playerStats[state.bombHolderId].bombHoldStart = now;
-				}
-
-				// Update fuse based on resetOnPass setting
-				if (state.resetOnPass) {
-					// Reset timer to configured fuse duration
-					state.currentFuseDuration = state.fuseDuration;
-					state.bombExplosionTime = now + state.currentFuseDuration;
-				}
-				// If resetOnPass is false, timer continues counting down (hot potato style)
-
-				// Set new question for the new holder
-				state.currentQuestion = nextQuestion;
-
-				// Mark question as seen by new holder
-				if (!state.playerSeenQuestions[nextHolderId]) {
-					state.playerSeenQuestions[nextHolderId] = {};
-				}
-				// Reset seen set if they've seen all questions
-				if (
-					Object.keys(state.playerSeenQuestions[nextHolderId]).length >=
-					(state.preparedQuestionCount || 0)
-				) {
-					state.playerSeenQuestions[nextHolderId] = {};
-				}
-				state.playerSeenQuestions[nextHolderId][nextQuestion.id] = true;
+			const eligiblePlayerIds = Object.entries(state.playerStatus)
+				.filter(([id, status]) => status === 'alive' && id !== currentHolderId)
+				.map(([id]) => id);
+			const nextHolderId = pickFairBombHolder(state, eligiblePlayerIds);
+			if (!nextHolderId) {
+				return;
 			}
+			const nextQuestion = selectQuestionForPlayerFromState(
+				state,
+				nextHolderId
+			);
+
+			state.bombHolderId = nextHolderId;
+
+			// Increment receives counter
+			if (state.playerStats[nextHolderId]) {
+				state.playerStats[nextHolderId].bombReceives += 1;
+			}
+
+			// Start tracking for new holder
+			if (state.playerStats[state.bombHolderId]) {
+				state.playerStats[state.bombHolderId].bombHoldStart = now;
+			}
+
+			// Update fuse based on resetOnPass setting
+			if (state.resetOnPass) {
+				// Reset timer to configured fuse duration
+				state.currentFuseDuration = state.fuseDuration;
+				state.bombExplosionTime = now + state.currentFuseDuration;
+			}
+			// If resetOnPass is false, timer continues counting down (hot potato style)
+
+			// Set new question for the new holder
+			state.currentQuestion = nextQuestion;
+
+			// Mark question as seen by new holder
+			if (!state.playerSeenQuestions[nextHolderId]) {
+				state.playerSeenQuestions[nextHolderId] = {};
+			}
+			// Reset seen set if they've seen all questions
+			if (
+				Object.keys(state.playerSeenQuestions[nextHolderId]).length >=
+				(state.preparedQuestionCount || 0)
+			) {
+				state.playerSeenQuestions[nextHolderId] = {};
+			}
+			state.playerSeenQuestions[nextHolderId][nextQuestion.id] = true;
 		});
 	},
 
@@ -724,7 +820,11 @@ export const gameActions = {
 		}
 
 		const isCorrect = pendingAnswer.answer === currentQuestion.correctAnswer;
-		if (isCorrect) {
+		const isCorrectNormalized =
+			normalizeAnswerText(pendingAnswer.answer) ===
+			normalizeAnswerText(currentQuestion.correctAnswer);
+		const isCorrectFinal = isCorrect || isCorrectNormalized;
+		if (isCorrectFinal) {
 			await this.passBomb();
 			await clearPendingAnswer();
 			return;
@@ -750,18 +850,6 @@ export const gameActions = {
 		if (!isHostController()) {
 			return;
 		}
-		// Pre-calculate next holder and their question before transaction
-		const alivePlayers = Object.entries(globalStore.proxy.playerStatus)
-			.filter(([, status]) => status === 'alive')
-			.filter(([id]) => id !== globalStore.proxy.bombHolderId)
-			.map(([id]) => id);
-
-		const nextHolderIndex = Math.floor(Math.random() * alivePlayers.length);
-		const nextHolderId = alivePlayers[nextHolderIndex];
-		const nextQuestion = nextHolderId
-			? selectQuestionForPlayer(nextHolderId)
-			: null;
-
 		try {
 			await kmClient.transact([globalStore], ([state]) => {
 				const victimId = state.bombHolderId;
@@ -801,9 +889,23 @@ export const gameActions = {
 					state.bombHolderId = null;
 					state.bombExplosionTime = null;
 					state.currentQuestion = null;
-				} else if (nextHolderId && nextQuestion) {
+				} else {
+					const nextHolderId = pickFairBombHolder(state, remainingPlayers);
+					if (!nextHolderId) {
+						return;
+					}
+					const nextQuestion = selectQuestionForPlayerFromState(
+						state,
+						nextHolderId
+					);
+
 					// Continue Game
 					state.bombHolderId = nextHolderId;
+
+					// Increment receives counter
+					if (state.playerStats[nextHolderId]) {
+						state.playerStats[nextHolderId].bombReceives += 1;
+					}
 
 					// Start tracking for new holder
 					if (state.playerStats[state.bombHolderId]) {

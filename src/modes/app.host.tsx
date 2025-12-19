@@ -87,7 +87,6 @@ const App: React.FC = () => {
 		preparedQuestionCount
 	} = useSnapshot(globalStore.proxy);
 	const [theme, setTheme] = useState(config.hostDefaultTheme);
-	const [language, setLanguage] = useState(config.hostDefaultLanguage);
 	const [fuseDuration, setFuseDuration] = useState(30); // seconds
 	const [resetOnPass, setResetOnPass] = useState(true);
 	const [difficulty, setDifficulty] = useState(1);
@@ -172,23 +171,6 @@ const App: React.FC = () => {
 										disabled={settingsDisabled}
 										className="bg-game-bg text-game-text focus:border-game-primary focus:ring-game-primary mt-1 block w-full rounded-md border border-white/20 p-2 shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
 									/>
-								</div>
-								<div>
-									<label className="text-game-text-muted block text-sm font-medium">
-										{config.hostLanguageLabel}
-									</label>
-									<select
-										value={language}
-										onChange={(e) => setLanguage(e.target.value)}
-										disabled={settingsDisabled}
-										className="bg-game-bg text-game-text focus:border-game-primary focus:ring-game-primary mt-1 block w-full rounded-md border border-white/20 p-2 shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
-									>
-										{config.hostLanguageOptions.map((lang) => (
-											<option key={lang} value={lang}>
-												{lang}
-											</option>
-										))}
-									</select>
 								</div>
 								<div>
 									<label className="text-game-text-muted block text-sm font-medium">
@@ -281,7 +263,7 @@ const App: React.FC = () => {
 											onClick={() =>
 												gameActions.prepareGame(
 													theme,
-													language,
+													config.hostDefaultLanguage,
 													fuseDuration * 1000,
 													resetOnPass,
 													difficulty,
