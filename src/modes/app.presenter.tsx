@@ -81,7 +81,7 @@ const App: React.FC = () => {
 			return {
 				rank: index + 1,
 				id,
-				name: players[id]?.name || 'Unknown',
+				name: players[id]?.name || config.unknownPlayerName,
 				score: stats?.questionsAnswered || 0,
 				holdTime: Math.round((stats?.bombHoldTime || 0) / 1000),
 				closeCalls: stats?.closeCalls || 0
@@ -102,7 +102,9 @@ const App: React.FC = () => {
 						<div className="rounded-lg bg-white p-2">
 							<KmQrCode data={playerLink} size={100} interactive={false} />
 						</div>
-						<div className="text-game-text text-xs font-bold">Join Game</div>
+						<div className="text-game-text text-xs font-bold">
+							{config.presenterJoinGameLabel}
+						</div>
 					</div>
 				)}
 
@@ -120,7 +122,7 @@ const App: React.FC = () => {
 									className="flex flex-col items-center gap-6"
 								>
 									<div className="text-game-text-muted text-2xl tracking-widest uppercase">
-										Preparing Questions
+										{config.presenterPreparingQuestionsTitle}
 									</div>
 									<div className="flex items-center gap-4">
 										<div className="h-3 w-64 overflow-hidden rounded-full bg-white/20">
@@ -148,7 +150,7 @@ const App: React.FC = () => {
 									className="flex flex-col items-center"
 								>
 									<div className="text-game-text-muted mb-4 text-2xl tracking-widest uppercase">
-										Get Ready
+										{config.playerGetReadyTitle}
 									</div>
 									<motion.div
 										key={countdownSeconds}
@@ -169,7 +171,7 @@ const App: React.FC = () => {
 									<div className="bg-game-primary/20 flex items-center justify-center gap-3 p-6">
 										<Trophy size={32} className="text-yellow-400" />
 										<h2 className="text-3xl font-bold text-white">
-											Final Standings
+											{config.presenterFinalStandingsTitle}
 										</h2>
 									</div>
 
@@ -177,16 +179,20 @@ const App: React.FC = () => {
 										<table className="w-full text-left">
 											<thead>
 												<tr className="text-game-text-muted border-b border-white/10 text-sm tracking-wider uppercase">
-													<th className="pb-4 pl-4 font-medium">Rank</th>
-													<th className="pb-4 font-medium">Player</th>
-													<th className="pb-4 text-center font-medium">
-														Correct Answers
+													<th className="pb-4 pl-4 font-medium">
+														{config.presenterLeaderboardRankHeader}
+													</th>
+													<th className="pb-4 font-medium">
+														{config.presenterLeaderboardPlayerHeader}
 													</th>
 													<th className="pb-4 text-center font-medium">
-														Bomb Time (s)
+														{config.presenterLeaderboardCorrectAnswersHeader}
 													</th>
 													<th className="pb-4 text-center font-medium">
-														Close Calls
+														{config.presenterLeaderboardBombTimeHeader}
+													</th>
+													<th className="pb-4 text-center font-medium">
+														{config.presenterLeaderboardCloseCallsHeader}
 													</th>
 												</tr>
 											</thead>
@@ -246,7 +252,7 @@ const App: React.FC = () => {
 									className="flex max-w-2xl flex-col gap-4"
 								>
 									<div className="text-game-text-muted text-sm tracking-widest uppercase">
-										Current Question
+										{config.presenterCurrentQuestionLabel}
 									</div>
 									<div className="text-game-text text-3xl leading-relaxed font-bold">
 										{currentQuestion.text}
@@ -259,7 +265,9 @@ const App: React.FC = () => {
 									animate={{ opacity: 1 }}
 									className="text-game-text-muted text-xl italic"
 								>
-									{started ? 'Get Ready...' : 'Waiting for players...'}
+									{started
+										? config.presenterWaitingStartedLabel
+										: config.presenterWaitingNotStartedLabel}
 								</motion.div>
 							)}
 						</AnimatePresence>
@@ -360,7 +368,7 @@ const App: React.FC = () => {
 				{!winnerId && eliminatedPlayers.length > 0 && (
 					<div className="border-t border-white/10 bg-black/20 p-4 backdrop-blur-sm">
 						<div className="mb-2 flex items-center gap-2 text-sm font-bold tracking-wider text-red-400 uppercase">
-							<Skull size={16} /> Graveyard
+							<Skull size={16} /> {config.presenterGraveyardTitle}
 						</div>
 						<div className="flex flex-wrap gap-4">
 							{eliminatedPlayers.map(([id, player]) => (

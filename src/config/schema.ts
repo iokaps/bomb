@@ -39,14 +39,14 @@ export const schema = z.object({
 		.default('Standard multiple-choice questions.'),
 
 	players: z.string().default('Players'),
-	timeElapsed: z.string().default('Time elapsed'),
 	startButton: z.string().default('Start Game'),
 	stopButton: z.string().default('Stop Game'),
 	prepareButton: z.string().default('Prepare Game'),
 	loading: z.string().default('Loading...'),
 
-	menuTitle: z.string().default('Menu'),
-	menuGameLobby: z.string().default('Lobby'),
+	// shared labels
+	unknownPlayerName: z.string().default('Unknown'),
+	winnerLabel: z.string().default('Winner:'),
 
 	playerNameTitle: z.string().default('Enter Your Name'),
 	playerNamePlaceholder: z.string().default('Your name...'),
@@ -56,12 +56,77 @@ export const schema = z.object({
 	hostLabel: z.string().default('Host'),
 	presenterLabel: z.string().default('Presenter'),
 	helpButtonLabel: z.string().default('How to Play'),
+	helpDialogDescription: z.string().default('Game instructions and rules'),
+
+	// host mode
+	hostGameControlsTitle: z.string().default('Game Controls'),
+	hostThemeLabel: z.string().default('Theme'),
+	hostLanguageLabel: z.string().default('Language'),
+	hostDefaultTheme: z.string().default('General Knowledge'),
+	hostDefaultLanguage: z.string().default('English'),
+	hostLanguageOptions: z
+		.array(z.string())
+		.default([
+			'English',
+			'Spanish',
+			'French',
+			'German',
+			'Italian',
+			'Portuguese',
+			'Japanese',
+			'Korean',
+			'Russian',
+			'Greek'
+		]),
+	hostPrepareNeedPlayersSuffix: z.string().default(' (Need 2+ players)'),
+	hostPrepareControllerOnlySuffix: z
+		.string()
+		.default(' (Controller host only)'),
+	hostGeneratingQuestionsLabel: z.string().default('Generating questions...'),
+	hostCancelButton: z.string().default('Cancel'),
+	hostQuestionsReadySuffix: z.string().default('questions ready!'),
+	hostChangeSettingsButton: z.string().default('Change Settings'),
+	hostQuestionGenerationFailedTitle: z
+		.string()
+		.default('Question generation failed'),
+	hostTryAgainButton: z.string().default('Try Again'),
+	hostGameInProgressLabel: z.string().default('Game in progress!'),
+	hostBombHolderLabel: z.string().default('Bomb Holder:'),
+	fuseTimerExplosionInPrefix: z.string().default('Explosion in:'),
+	fuseTimerOverduePrefix: z.string().default('OVERDUE:'),
 
 	gameLinksTitle: z.string().default('Game Links'),
 	playerLinkLabel: z.string().default('Player Link'),
 	presenterLinkLabel: z.string().default('Presenter Link'),
 
-	menuAriaLabel: z.string().default('Open menu drawer')
+	// presenter mode
+	presenterJoinGameLabel: z.string().default('Join Game'),
+	presenterPreparingQuestionsTitle: z.string().default('Preparing Questions'),
+	presenterFinalStandingsTitle: z.string().default('Final Standings'),
+	presenterLeaderboardRankHeader: z.string().default('Rank'),
+	presenterLeaderboardPlayerHeader: z.string().default('Player'),
+	presenterLeaderboardCorrectAnswersHeader: z
+		.string()
+		.default('Correct Answers'),
+	presenterLeaderboardBombTimeHeader: z.string().default('Bomb Time (s)'),
+	presenterLeaderboardCloseCallsHeader: z.string().default('Close Calls'),
+	presenterCurrentQuestionLabel: z.string().default('Current Question'),
+	presenterWaitingStartedLabel: z.string().default('Get Ready...'),
+	presenterWaitingNotStartedLabel: z.string().default('Waiting for players...'),
+	presenterGraveyardTitle: z.string().default('Graveyard'),
+
+	// player game view
+	playerGetReadyTitle: z.string().default('Get Ready'),
+	playerGameStartingSoonLabel: z.string().default('Game starting soon...'),
+	playerGameOverTitle: z.string().default('Game Over!'),
+	playerEliminatedTitle: z.string().default('ELIMINATED'),
+	playerEliminatedMessage: z.string().default('Better luck next time!'),
+	playerHasBombTitle: z.string().default('YOU HAVE THE BOMB!'),
+	playerHasBombSubtitle: z.string().default('Answer quickly!'),
+	playerLoadingQuestionLabel: z.string().default('Loading question...'),
+	playerSafeTitle: z.string().default('SAFE'),
+	playerSafeSubtitle: z.string().default('Wait for your turn...'),
+	playerBombIsWithLabel: z.string().default('Bomb is with:')
 });
 
 export type Config = z.infer<typeof schema>;

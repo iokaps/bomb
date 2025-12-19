@@ -22,13 +22,12 @@ const HelpButton = () => {
 			onClick={() =>
 				openDialog({
 					title: config.helpButtonLabel,
-					description: 'Game instructions and rules',
+					description: config.helpDialogDescription,
 					content: (
 						<div className="prose prose-invert max-h-[60vh] max-w-none overflow-y-auto pr-2">
 							<Markdown>{config.howToPlayMd}</Markdown>
 						</div>
-					),
-					type: 'dialog'
+					)
 				})
 			}
 			className="flex items-center gap-2 rounded-md border border-white/20 bg-transparent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-white/10"
@@ -64,7 +63,9 @@ const FuseTimer = () => {
 		<div
 			className={`font-mono text-2xl font-bold ${timeLeft <= 5 ? 'animate-pulse text-red-600' : 'text-game-text'}`}
 		>
-			{timeLeft > 0 ? `Explosion in: ${timeLeft}s` : `OVERDUE: ${timeLeft}s`}
+			{timeLeft > 0
+				? `${config.fuseTimerExplosionInPrefix} ${timeLeft}s`
+				: `${config.fuseTimerOverduePrefix} ${timeLeft}s`}
 		</div>
 	);
 };
@@ -85,8 +86,8 @@ const App: React.FC = () => {
 		questionGenerationProgress,
 		preparedQuestionCount
 	} = useSnapshot(globalStore.proxy);
-	const [theme, setTheme] = useState('General Knowledge');
-	const [language, setLanguage] = useState('English');
+	const [theme, setTheme] = useState(config.hostDefaultTheme);
+	const [language, setLanguage] = useState(config.hostDefaultLanguage);
 	const [fuseDuration, setFuseDuration] = useState(30); // seconds
 	const [resetOnPass, setResetOnPass] = useState(true);
 	const [difficulty, setDifficulty] = useState(1);
@@ -156,13 +157,13 @@ const App: React.FC = () => {
 
 					<div className="bg-game-surface rounded-lg border border-white/10 p-6 shadow-xl">
 						<h2 className="text-game-text mb-4 text-xl font-bold">
-							Game Controls
+							{config.hostGameControlsTitle}
 						</h2>
 						{!started ? (
 							<div className="flex flex-col gap-4">
 								<div>
 									<label className="text-game-text-muted block text-sm font-medium">
-										Theme
+										{config.hostThemeLabel}
 									</label>
 									<input
 										type="text"
@@ -174,7 +175,7 @@ const App: React.FC = () => {
 								</div>
 								<div>
 									<label className="text-game-text-muted block text-sm font-medium">
-										Language
+										{config.hostLanguageLabel}
 									</label>
 									<select
 										value={language}
@@ -182,16 +183,11 @@ const App: React.FC = () => {
 										disabled={settingsDisabled}
 										className="bg-game-bg text-game-text focus:border-game-primary focus:ring-game-primary mt-1 block w-full rounded-md border border-white/20 p-2 shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
 									>
-										<option value="English">English</option>
-										<option value="Spanish">Spanish</option>
-										<option value="French">French</option>
-										<option value="German">German</option>
-										<option value="Italian">Italian</option>
-										<option value="Portuguese">Portuguese</option>
-										<option value="Japanese">Japanese</option>
-										<option value="Korean">Korean</option>
-										<option value="Russian">Russian</option>
-										<option value="Greek">Greek</option>
+										{config.hostLanguageOptions.map((lang) => (
+											<option key={lang} value={lang}>
+												{lang}
+											</option>
+										))}
 									</select>
 								</div>
 								<div>
@@ -298,14 +294,16 @@ const App: React.FC = () => {
 											}
 										>
 											{config.prepareButton}
-											{Object.keys(players).length < 2 && ' (Need 2+ players)'}
+											{Object.keys(players).length < 2 &&
+												config.hostPrepareNeedPlayersSuffix}
 											{Object.keys(players).length >= 2 &&
 												!canControlGame &&
-												' (Controller host only)'}
+												config.hostPrepareControllerOnlySuffix}
 										</button>
 										{winnerId && (
 											<div className="text-xl font-bold text-green-400">
-												Winner: {players[winnerId]?.name || winnerId}
+												{config.winnerLabel}{' '}
+												{players[winnerId]?.name || winnerId}
 											</div>
 										)}
 									</div>
@@ -329,13 +327,13 @@ const App: React.FC = () => {
 											</span>
 										</div>
 										<div className="text-game-text-muted text-center text-sm">
-											Generating questions...
+											{config.hostGeneratingQuestionsLabel}
 										</div>
 										<button
 											onClick={() => gameActions.cancelPreparation()}
 											className="rounded border border-red-500 px-4 py-2 font-medium text-red-500 transition-colors hover:bg-red-500/10"
 										>
-											Cancel
+											{config.hostCancelButton}
 										</button>
 									</div>
 								)}
@@ -344,7 +342,7 @@ const App: React.FC = () => {
 								{questionGenerationStatus === 'ready' && (
 									<div className="flex flex-col gap-3">
 										<div className="text-center text-lg font-bold text-green-400">
-											{preparedQuestionCount} questions ready!
+											{preparedQuestionCount} {config.hostQuestionsReadySuffix}
 										</div>
 										<button
 											onClick={() => gameActions.startGame()}
@@ -357,7 +355,7 @@ const App: React.FC = () => {
 											onClick={() => gameActions.cancelPreparation()}
 											className="rounded border border-white/20 px-4 py-2 font-medium text-white/70 transition-colors hover:bg-white/10"
 										>
-											Change Settings
+											{config.hostChangeSettingsButton}
 										</button>
 									</div>
 								)}
@@ -366,25 +364,27 @@ const App: React.FC = () => {
 								{questionGenerationStatus === 'failed' && (
 									<div className="flex flex-col gap-3">
 										<div className="text-center text-lg font-bold text-red-400">
-											Question generation failed
+											{config.hostQuestionGenerationFailedTitle}
 										</div>
 										<button
 											onClick={() => gameActions.cancelPreparation()}
 											className="rounded border border-white/20 px-4 py-2 font-medium text-white/70 transition-colors hover:bg-white/10"
 										>
-											Try Again
+											{config.hostTryAgainButton}
 										</button>
 									</div>
 								)}
 							</div>
 						) : (
 							<div className="flex flex-col gap-4">
-								<div className="text-game-text text-lg">Game in progress!</div>
+								<div className="text-game-text text-lg">
+									{config.hostGameInProgressLabel}
+								</div>
 								<FuseTimer />
 								<div className="text-game-text">
-									Bomb Holder:{' '}
+									{config.hostBombHolderLabel}{' '}
 									<strong className="animate-pulse text-red-500">
-										{players[bombHolderId!]?.name || 'Unknown'}
+										{players[bombHolderId!]?.name || config.unknownPlayerName}
 									</strong>
 								</div>
 								<button
