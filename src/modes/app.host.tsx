@@ -10,7 +10,6 @@ import { globalStore } from '@/state/stores/global-store';
 import { KmModalProvider, KmQrCode, useKmModal } from '@kokimoki/shared';
 import { CircleHelp } from 'lucide-react';
 import * as React from 'react';
-import { useState } from 'react';
 import Markdown from 'react-markdown';
 import { useSnapshot } from 'valtio';
 
@@ -40,7 +39,7 @@ const HelpButton = () => {
 
 const FuseTimer = () => {
 	const { started, bombExplosionTime } = useSnapshot(globalStore.proxy);
-	const [timeLeft, setTimeLeft] = useState<number | null>(null);
+	const [timeLeft, setTimeLeft] = React.useState<number | null>(null);
 
 	React.useEffect(() => {
 		if (!started || !bombExplosionTime) {
@@ -64,8 +63,8 @@ const FuseTimer = () => {
 			className={`font-mono text-2xl font-bold ${timeLeft <= 5 ? 'animate-pulse text-red-600' : 'text-game-text'}`}
 		>
 			{timeLeft > 0
-				? `${config.fuseTimerExplosionInPrefix} ${timeLeft}s`
-				: `${config.fuseTimerOverduePrefix} ${timeLeft}s`}
+				? `${config.fuseTimerExplosionInPrefix} ${timeLeft}${config.secondsSuffix}`
+				: `${config.fuseTimerOverduePrefix} ${timeLeft}${config.secondsSuffix}`}
 		</div>
 	);
 };
@@ -84,13 +83,26 @@ const App: React.FC = () => {
 		controllerClientId,
 		questionGenerationStatus,
 		questionGenerationProgress,
-		preparedQuestionCount
+		preparedQuestionCount,
+		pendingGameSettings
 	} = useSnapshot(globalStore.proxy);
-	const [theme, setTheme] = useState(config.hostDefaultTheme);
-	const [fuseDuration, setFuseDuration] = useState(30); // seconds
-	const [resetOnPass, setResetOnPass] = useState(true);
-	const [difficulty, setDifficulty] = useState(1);
-	const [trickyQuestions, setTrickyQuestions] = useState(false);
+
+	React.useEffect(() => {
+		if (started) {
+			return;
+		}
+		gameActions.ensurePendingGameSettingsInitialized().catch(() => {
+			// no-op: host may not be controller yet
+		});
+	}, [started]);
+
+	const theme = pendingGameSettings?.theme ?? config.hostDefaultTheme;
+	const fuseDurationSeconds = Math.round(
+		(pendingGameSettings?.fuseDuration ?? 30000) / 1000
+	);
+	const resetOnPass = pendingGameSettings?.resetOnPass ?? true;
+	const difficulty = pendingGameSettings?.difficulty ?? 1;
+	const trickyQuestions = pendingGameSettings?.trickyQuestions ?? false;
 
 	// Settings are disabled when generating or ready
 	const settingsDisabled =
@@ -155,9 +167,15 @@ const App: React.FC = () => {
 					</div>
 
 					<div className="bg-game-surface rounded-lg border border-white/10 p-6 shadow-xl">
-						<h2 className="text-game-text mb-4 text-xl font-bold">
-							{config.hostGameControlsTitle}
-						</h2>
+						<div className="mb-4 flex items-end justify-between gap-4">
+							<h2 className="text-game-text text-xl font-bold">
+								{config.hostGameControlsTitle}
+							</h2>
+							<div className="text-game-text-muted text-sm font-medium">
+								{config.players}: {Object.keys(players).length}/
+								{config.maxPlayers}
+							</div>
+						</div>
 						{!started ? (
 							<div className="flex flex-col gap-4">
 								<div>
@@ -167,7 +185,11 @@ const App: React.FC = () => {
 									<input
 										type="text"
 										value={theme}
-										onChange={(e) => setTheme(e.target.value)}
+										onChange={(e) =>
+											gameActions.updatePendingGameSettings({
+												theme: e.target.value
+											})
+										}
 										disabled={settingsDisabled}
 										className="bg-game-bg text-game-text focus:border-game-primary focus:ring-game-primary mt-1 block w-full rounded-md border border-white/20 p-2 shadow-sm disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
 									/>
@@ -182,13 +204,18 @@ const App: React.FC = () => {
 											min={10}
 											max={60}
 											step={5}
-											value={fuseDuration}
-											onChange={(e) => setFuseDuration(Number(e.target.value))}
+											value={fuseDurationSeconds}
+											onChange={(e) =>
+												gameActions.updatePendingGameSettings({
+													fuseDuration: Number(e.target.value) * 1000
+												})
+											}
 											disabled={settingsDisabled}
 											className="accent-game-primary h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
 										/>
 										<span className="text-game-text w-12 text-center font-mono text-lg font-bold">
-											{fuseDuration}s
+											{fuseDurationSeconds}
+											{config.secondsSuffix}
 										</span>
 									</div>
 								</div>
@@ -199,7 +226,11 @@ const App: React.FC = () => {
 										<input
 											type="checkbox"
 											checked={resetOnPass}
-											onChange={(e) => setResetOnPass(e.target.checked)}
+											onChange={(e) =>
+												gameActions.updatePendingGameSettings({
+													resetOnPass: e.target.checked
+												})
+											}
 											disabled={settingsDisabled}
 											className="accent-game-primary h-5 w-5 cursor-pointer rounded disabled:cursor-not-allowed"
 										/>
@@ -223,7 +254,11 @@ const App: React.FC = () => {
 											max={5}
 											step={1}
 											value={difficulty}
-											onChange={(e) => setDifficulty(Number(e.target.value))}
+											onChange={(e) =>
+												gameActions.updatePendingGameSettings({
+													difficulty: Number(e.target.value)
+												})
+											}
 											disabled={settingsDisabled}
 											className="accent-game-primary h-2 flex-1 cursor-pointer appearance-none rounded-lg bg-white/20 disabled:cursor-not-allowed disabled:opacity-50"
 										/>
@@ -243,7 +278,11 @@ const App: React.FC = () => {
 										<input
 											type="checkbox"
 											checked={trickyQuestions}
-											onChange={(e) => setTrickyQuestions(e.target.checked)}
+											onChange={(e) =>
+												gameActions.updatePendingGameSettings({
+													trickyQuestions: e.target.checked
+												})
+											}
 											disabled={settingsDisabled}
 											className="accent-game-primary h-5 w-5 cursor-pointer rounded disabled:cursor-not-allowed"
 										/>
@@ -261,14 +300,7 @@ const App: React.FC = () => {
 									<div className="flex flex-col gap-2">
 										<button
 											onClick={() =>
-												gameActions.prepareGame(
-													theme,
-													config.hostDefaultLanguage,
-													fuseDuration * 1000,
-													resetOnPass,
-													difficulty,
-													trickyQuestions
-												)
+												gameActions.prepareGameFromPendingSettings()
 											}
 											className="bg-game-primary flex-1 rounded px-4 py-2 font-medium text-white transition-colors hover:bg-indigo-600 disabled:opacity-50"
 											disabled={

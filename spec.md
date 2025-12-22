@@ -26,6 +26,10 @@ The host can also configure question generation:
 1. **Difficulty** (1-5): Controls how hard the generated questions are.
 2. **Tricky Questions** (toggle): When enabled, distractor options become more plausible (independent of difficulty).
 
+### Fallback Questions
+
+- If AI generation fails (or the prepared pool is exhausted), the game uses `fallbackQuestions` from the app config.
+
 ## Core Gameplay Loop
 
 1. **Lobby**: Players join via QR code or link.
@@ -56,6 +60,10 @@ The host can also configure question generation:
 
 - The full prepared question pool is cached on the elected host controller (not synced to shared state) to avoid CRDT document size limits.
 - Shared state only syncs lightweight preparation metadata (status, progress, prepared question count).
+
+### Question Generation Tuning
+
+- Question generation sizing/tuning is configurable via config values (e.g. average answer time, rounds per player, buffer multiplier, min/max prepared questions, and how many recent questions to avoid).
 
 ## Future Improvements
 

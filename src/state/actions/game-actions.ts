@@ -1,7 +1,9 @@
+import { config } from '@/config';
 import { kmClient } from '@/services/km-client';
 import {
 	globalStore,
 	type GlobalState,
+	type PendingGameSettings,
 	type Question
 } from '../stores/global-store';
 import { playerStore } from '../stores/player-store';
@@ -90,84 +92,39 @@ async function ensureControllerClaimed() {
 type AIModel = 'gemini-2.5-flash' | 'gpt-4o-mini';
 const AI_MODELS: AIModel[] = ['gemini-2.5-flash', 'gpt-4o-mini'];
 
-// Fallback questions used when AI fails or pool is exhausted
-const FALLBACK_QUESTIONS: Omit<Question, 'id'>[] = [
-	{
-		text: 'What is the capital of France?',
-		options: ['London', 'Berlin', 'Paris', 'Madrid'],
-		correctAnswer: 'Paris'
-	},
-	{
-		text: 'Which planet is known as the Red Planet?',
-		options: ['Venus', 'Mars', 'Jupiter', 'Saturn'],
-		correctAnswer: 'Mars'
-	},
-	{
-		text: 'What is 2 + 2?',
-		options: ['3', '4', '5', '6'],
-		correctAnswer: '4'
-	},
-	{
-		text: 'Who painted the Mona Lisa?',
-		options: ['Van Gogh', 'Da Vinci', 'Picasso', 'Rembrandt'],
-		correctAnswer: 'Da Vinci'
-	},
-	{
-		text: 'What is the largest ocean?',
-		options: ['Atlantic', 'Indian', 'Arctic', 'Pacific'],
-		correctAnswer: 'Pacific'
-	},
-	{
-		text: 'Which element has the symbol O?',
-		options: ['Gold', 'Oxygen', 'Silver', 'Iron'],
-		correctAnswer: 'Oxygen'
-	},
-	{
-		text: 'How many continents are there?',
-		options: ['5', '6', '7', '8'],
-		correctAnswer: '7'
-	},
-	{
-		text: 'What is the speed of light?',
-		options: ['Fast', 'Very Fast', 'Super Fast', '299,792 km/s'],
-		correctAnswer: '299,792 km/s'
-	},
-	{
-		text: 'Which animal is the king of the jungle?',
-		options: ['Tiger', 'Lion', 'Elephant', 'Giraffe'],
-		correctAnswer: 'Lion'
-	},
-	{
-		text: 'What is the boiling point of water?',
-		options: ['90°C', '100°C', '110°C', '120°C'],
-		correctAnswer: '100°C'
-	}
-];
+function getFallbackPool() {
+	const pool = config.fallbackQuestions;
+	return Array.isArray(pool) && pool.length > 0 ? pool : null;
+}
 
-// Calculate how many questions to generate based on players and fuse duration
-function calculateQuestionCount(
-	playerCount: number,
-	fuseDurationMs: number
-): number {
-	// Average time to answer a question: ~5 seconds
-	const avgAnswerTime = 5000;
+// Calculate how many questions to generate based on player count
+function calculateQuestionCount(playerCount: number): number {
+	const HARD_MAX_PREPARED_QUESTIONS = 100;
 
-	// Questions per bomb hold = fuse duration / answer time
-	const questionsPerHold = Math.ceil(fuseDurationMs / avgAnswerTime);
+	// Linear formula: base + (players * per-player)
+	const baseCount =
+		playerCount * config.questionsPerPlayer + config.questionsBaseCount;
 
-	// Estimated rounds before game ends = players * 3 (multiple passes per elimination)
-	const estimatedRounds = playerCount * 3;
+	const maxAllowed = Math.min(
+		config.maxPreparedQuestions,
+		HARD_MAX_PREPARED_QUESTIONS
+	);
+	const minAllowed = Math.min(config.minPreparedQuestions, maxAllowed);
 
-	// Total with 50% buffer for wrong answers
-	const totalQuestions = Math.ceil(questionsPerHold * estimatedRounds * 1.5);
-
-	// Minimum 20, maximum 100 questions
-	return Math.max(20, Math.min(100, totalQuestions));
+	// Clamp to configured range (with hard cap)
+	return Math.max(minAllowed, Math.min(maxAllowed, baseCount));
 }
 
 // Get a fallback question
 function getFallbackQuestion(): Question {
-	const fallback = FALLBACK_QUESTIONS[Date.now() % FALLBACK_QUESTIONS.length];
+	const pool = getFallbackPool();
+	const fallback =
+		pool?.[Date.now() % pool.length] ??
+		({
+			text: 'What is 2 + 2?',
+			options: ['3', '4', '5', '6'],
+			correctAnswer: '4'
+		} as const);
 	return {
 		id:
 			'fallback-' + Date.now() + '-' + Math.random().toString(36).substring(7),
@@ -197,8 +154,10 @@ async function generateQuestionsFromModel(
 						? 'very hard'
 						: 'extreme';
 
-	// Take the last 50 questions to give the AI context on what to avoid
-	const recentQuestions = Array.from(avoidQuestions).slice(-50);
+	// Take the last N questions to give the AI context on what to avoid
+	const recentQuestions = Array.from(avoidQuestions).slice(
+		-config.avoidRecentQuestionsCount
+	);
 	const avoidText =
 		recentQuestions.length > 0
 			? `\nDo NOT use these questions or similar ones: ${JSON.stringify(recentQuestions)}`
@@ -358,8 +317,14 @@ async function generateQuestions(
 
 	// Fallback questions using the shared pool
 	return Array.from({ length: count }).map((_, i) => {
+		const pool = getFallbackPool();
 		const fallback =
-			FALLBACK_QUESTIONS[(Date.now() + i) % FALLBACK_QUESTIONS.length];
+			pool?.[(Date.now() + i) % pool.length] ??
+			({
+				text: 'What is 2 + 2?',
+				options: ['3', '4', '5', '6'],
+				correctAnswer: '4'
+			} as const);
 		return {
 			id: 'fallback-' + Date.now() + '-' + i,
 			text: fallback.text,
@@ -433,7 +398,102 @@ async function clearPendingAnswer() {
 	});
 }
 
+function clampDifficulty(value: number) {
+	return Math.max(1, Math.min(5, Math.round(value)));
+}
+
+function clampFuseDurationMs(value: number) {
+	return Math.max(10000, Math.min(60000, Math.round(value)));
+}
+
 export const gameActions = {
+	async ensurePendingGameSettingsInitialized() {
+		if (kmClient.clientContext.mode !== 'host') {
+			return;
+		}
+
+		await kmClient.transact([globalStore], ([state]) => {
+			if (state.started) {
+				return;
+			}
+			if (state.pendingGameSettings) {
+				return;
+			}
+
+			state.pendingGameSettings = {
+				theme: state.gameSettings.theme || config.hostDefaultTheme,
+				difficulty: clampDifficulty(state.gameSettings.difficulty || 1),
+				language: state.gameSettings.language || config.hostDefaultLanguage,
+				fuseDuration: clampFuseDurationMs(state.fuseDuration || 30000),
+				resetOnPass: Boolean(state.resetOnPass),
+				trickyQuestions: Boolean(state.gameSettings.trickyQuestions)
+			};
+		});
+	},
+
+	async updatePendingGameSettings(patch: Partial<PendingGameSettings>) {
+		if (kmClient.clientContext.mode !== 'host') {
+			return;
+		}
+
+		await kmClient.transact([globalStore], ([state]) => {
+			if (!state.pendingGameSettings) {
+				state.pendingGameSettings = {
+					theme: state.gameSettings.theme || config.hostDefaultTheme,
+					difficulty: clampDifficulty(state.gameSettings.difficulty || 1),
+					language: state.gameSettings.language || config.hostDefaultLanguage,
+					fuseDuration: clampFuseDurationMs(state.fuseDuration || 30000),
+					resetOnPass: Boolean(state.resetOnPass),
+					trickyQuestions: Boolean(state.gameSettings.trickyQuestions)
+				};
+			}
+
+			if (typeof patch.theme === 'string') {
+				state.pendingGameSettings.theme = patch.theme;
+			}
+			if (typeof patch.language === 'string') {
+				state.pendingGameSettings.language = patch.language;
+			}
+			if (typeof patch.difficulty === 'number') {
+				state.pendingGameSettings.difficulty = clampDifficulty(
+					patch.difficulty
+				);
+			}
+			if (typeof patch.fuseDuration === 'number') {
+				state.pendingGameSettings.fuseDuration = clampFuseDurationMs(
+					patch.fuseDuration
+				);
+			}
+			if (typeof patch.resetOnPass === 'boolean') {
+				state.pendingGameSettings.resetOnPass = patch.resetOnPass;
+			}
+			if (typeof patch.trickyQuestions === 'boolean') {
+				state.pendingGameSettings.trickyQuestions = patch.trickyQuestions;
+			}
+		});
+	},
+
+	async prepareGameFromPendingSettings() {
+		await ensureControllerClaimed();
+		if (!isHostController()) {
+			throw new Error('Only the elected host controller can prepare the game');
+		}
+
+		const pending = globalStore.proxy.pendingGameSettings;
+		if (!pending) {
+			throw new Error('No pending game settings to prepare');
+		}
+
+		return gameActions.prepareGame(
+			pending.theme,
+			pending.language,
+			pending.fuseDuration,
+			pending.resetOnPass,
+			pending.difficulty,
+			pending.trickyQuestions
+		);
+	},
+
 	/**
 	 * Phase 1: Prepare the game by generating all questions
 	 * This should be called before startGame()
@@ -454,7 +514,7 @@ export const gameActions = {
 		resetPreparedQuestions();
 
 		const playerCount = Object.keys(globalStore.proxy.players).length;
-		const questionCount = calculateQuestionCount(playerCount, fuseDuration);
+		const questionCount = calculateQuestionCount(playerCount);
 
 		console.log(
 			`Preparing game: generating ${questionCount} questions for ${playerCount} players (fuse: ${fuseDuration}ms)...`
@@ -559,7 +619,7 @@ export const gameActions = {
 		await kmClient.transact([globalStore], ([state]) => {
 			state.questionGenerationStatus = 'idle';
 			state.questionGenerationProgress = { current: 0, total: 0 };
-			state.pendingGameSettings = null;
+			// Keep pendingGameSettings so hosts can tweak settings without losing them.
 			state.questionPool = {};
 			state.questionOrder = [];
 			state.preparedQuestionCount = 0;

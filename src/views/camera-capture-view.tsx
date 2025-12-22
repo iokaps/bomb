@@ -1,3 +1,4 @@
+import { config } from '@/config';
 import { playerActions } from '@/state/actions/player-actions';
 import { cn } from '@/utils/cn';
 import { Camera, X } from 'lucide-react';
@@ -32,7 +33,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 				}
 			} catch (err) {
 				console.error('Camera access error:', err);
-				setError('Could not access camera. You can skip this step.');
+				setError(config.cameraCaptureErrorAccess);
 			}
 		};
 
@@ -89,7 +90,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 			})
 			.catch((err) => {
 				console.error('Camera restart error:', err);
-				setError('Could not restart camera.');
+				setError(config.cameraCaptureErrorRestart);
 			});
 	};
 
@@ -104,7 +105,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 			onComplete();
 		} catch (err) {
 			console.error('Photo save error:', err);
-			setError('Failed to save photo. Please try again or skip.');
+			setError(config.cameraCaptureErrorSave);
 		} finally {
 			setIsLoading(false);
 		}
@@ -126,7 +127,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 		>
 			<div className="p-6">
 				<h2 className="text-game-text mb-4 text-xl font-bold">
-					Take Your Photo
+					{config.cameraCaptureTitle}
 				</h2>
 
 				{error && (
@@ -147,7 +148,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 					) : (
 						<img
 							src={capturedPhoto}
-							alt="Captured"
+							alt={config.cameraCaptureCapturedAlt}
 							className="h-full w-full object-cover"
 						/>
 					)}
@@ -165,7 +166,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 								className="bg-game-primary flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-3 font-medium text-white transition-colors hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
 							>
 								<Camera size={20} />
-								Capture Photo
+								{config.cameraCaptureButtonCapture}
 							</button>
 							<button
 								type="button"
@@ -173,7 +174,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 								className="bg-game-surface flex items-center justify-center gap-2 rounded-lg border border-white/20 px-4 py-3 font-medium text-white transition-colors hover:bg-white/5"
 							>
 								<X size={20} />
-								Skip
+								{config.cameraCaptureButtonSkip}
 							</button>
 						</>
 					) : (
@@ -184,7 +185,9 @@ export const CameraCaptureView: React.FC<Props> = ({
 								disabled={isLoading}
 								className="bg-game-primary flex-1 rounded-lg px-4 py-3 font-medium text-white transition-colors hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
 							>
-								{isLoading ? 'Uploading...' : 'Use This Photo'}
+								{isLoading
+									? config.cameraCaptureButtonUploading
+									: config.cameraCaptureButtonUsePhoto}
 							</button>
 							<button
 								type="button"
@@ -192,7 +195,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 								disabled={isLoading}
 								className="bg-game-surface rounded-lg border border-white/20 px-4 py-3 font-medium text-white transition-colors hover:bg-white/5"
 							>
-								Retake
+								{config.cameraCaptureButtonRetake}
 							</button>
 						</>
 					)}
@@ -200,7 +203,7 @@ export const CameraCaptureView: React.FC<Props> = ({
 
 				{!capturedPhoto && !error && (
 					<p className="text-game-text-muted mt-4 text-center text-sm">
-						Position your face in the frame and click capture
+						{config.cameraCaptureHint}
 					</p>
 				)}
 			</div>

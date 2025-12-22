@@ -130,7 +130,7 @@ const App: React.FC = () => {
 				{/* Main Arena (Circle) */}
 				<div className="relative flex flex-1 items-center justify-center">
 					{/* Center Stage: Question or Status */}
-					<div className="absolute z-40 flex h-full w-full flex-col items-center justify-center p-8 text-center">
+					<div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center">
 						<AnimatePresence mode="wait">
 							{questionGenerationStatus === 'generating' ? (
 								<motion.div
@@ -251,7 +251,8 @@ const App: React.FC = () => {
 															{player.score}
 														</td>
 														<td className="py-4 text-center font-mono text-xl text-red-400">
-															{player.holdTime}s
+															{player.holdTime}
+															{config.secondsSuffix}
 														</td>
 														<td className="py-4 text-center font-mono text-xl text-orange-400">
 															{player.closeCalls}
@@ -268,12 +269,12 @@ const App: React.FC = () => {
 									initial={{ opacity: 0, y: 20 }}
 									animate={{ opacity: 1, y: 0 }}
 									exit={{ opacity: 0, y: -20 }}
-									className="bg-game-surface/95 flex w-full max-w-3xl flex-col gap-4 rounded-2xl border border-white/10 p-8 shadow-2xl backdrop-blur-xl"
+									className="bg-game-surface/95 flex w-full max-w-md flex-col gap-3 rounded-2xl border border-white/10 p-6 shadow-2xl backdrop-blur-xl"
 								>
-									<div className="text-game-text-muted text-sm tracking-widest uppercase">
+									<div className="text-game-text-muted text-xs tracking-widest uppercase">
 										{config.presenterCurrentQuestionLabel}
 									</div>
-									<div className="text-game-text text-3xl leading-relaxed font-bold">
+									<div className="text-game-text text-2xl leading-snug font-bold">
 										{currentQuestion.text}
 									</div>
 								</motion.div>
@@ -294,7 +295,7 @@ const App: React.FC = () => {
 
 					{/* Players Circle - Hide when winner is shown */}
 					{!winnerId && (
-						<div className="relative h-[600px] w-[600px]">
+						<div className="relative z-40 h-[600px] w-[600px]">
 							<AnimatePresence>
 								{alivePlayers.map(([id, player], index) => {
 									const total = alivePlayers.length;

@@ -46,11 +46,27 @@ loading: 'Loading...'
 # Shared labels
 unknownPlayerName: 'Unknown'
 winnerLabel: 'Winner:'
+secondsSuffix: 's'
 
 playerNameTitle: 'Enter Your Name'
 playerNamePlaceholder: 'Your name...'
 playerNameLabel: 'Name:'
 playerNameButton: 'Continue'
+maxPlayers: 25
+playerLobbyFullError: 'Lobby is full. Please wait for the next round.'
+
+# Camera capture view
+cameraCaptureTitle: 'Take Your Photo'
+cameraCaptureCapturedAlt: 'Captured'
+cameraCaptureButtonCapture: 'Capture Photo'
+cameraCaptureButtonSkip: 'Skip'
+cameraCaptureButtonUploading: 'Uploading...'
+cameraCaptureButtonUsePhoto: 'Use This Photo'
+cameraCaptureButtonRetake: 'Retake'
+cameraCaptureHint: 'Position your face in the frame and click capture'
+cameraCaptureErrorAccess: 'Could not access camera. You can skip this step.'
+cameraCaptureErrorRestart: 'Could not restart camera.'
+cameraCaptureErrorSave: 'Failed to save photo. Please try again or skip.'
 
 hostLabel: 'Host'
 presenterLabel: 'Presenter'
@@ -105,3 +121,83 @@ playerLoadingQuestionLabel: 'Loading question...'
 playerSafeTitle: 'SAFE'
 playerSafeSubtitle: 'Wait for your turn...'
 playerBombIsWithLabel: 'Bomb is with:'
+
+# Fallback questions used when AI generation fails or the pool is exhausted
+fallbackQuestions:
+  - text: 'What is the capital of France?'
+    options:
+      - 'London'
+      - 'Berlin'
+      - 'Paris'
+      - 'Madrid'
+    correctAnswer: 'Paris'
+  - text: 'Which planet is known as the Red Planet?'
+    options:
+      - 'Venus'
+      - 'Mars'
+      - 'Jupiter'
+      - 'Saturn'
+    correctAnswer: 'Mars'
+  - text: 'What is 2 + 2?'
+    options:
+      - '3'
+      - '4'
+      - '5'
+      - '6'
+    correctAnswer: '4'
+  - text: 'Who painted the Mona Lisa?'
+    options:
+      - 'Van Gogh'
+      - 'Da Vinci'
+      - 'Picasso'
+      - 'Rembrandt'
+    correctAnswer: 'Da Vinci'
+  - text: 'What is the largest ocean?'
+    options:
+      - 'Atlantic'
+      - 'Indian'
+      - 'Arctic'
+      - 'Pacific'
+    correctAnswer: 'Pacific'
+  - text: 'Which element has the symbol O?'
+    options:
+      - 'Gold'
+      - 'Oxygen'
+      - 'Silver'
+      - 'Iron'
+    correctAnswer: 'Oxygen'
+  - text: 'How many continents are there?'
+    options:
+      - '5'
+      - '6'
+      - '7'
+      - '8'
+    correctAnswer: '7'
+  - text: 'What is the speed of light?'
+    options:
+      - 'Fast'
+      - 'Very Fast'
+      - 'Super Fast'
+      - '299,792 km/s'
+    correctAnswer: '299,792 km/s'
+  - text: 'Which animal is the king of the jungle?'
+    options:
+      - 'Tiger'
+      - 'Lion'
+      - 'Elephant'
+      - 'Giraffe'
+    correctAnswer: 'Lion'
+  - text: 'What is the boiling point of water?'
+    options:
+      - '90°C'
+      - '100°C'
+      - '110°C'
+      - '120°C'
+    correctAnswer: '100°C'
+
+# Question generation tuning
+questionsPerPlayer: 3
+questionsBaseCount: 5
+minPreparedQuestions: 20
+maxPreparedQuestions: 100
+avoidRecentQuestionsCount: 50

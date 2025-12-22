@@ -17,6 +17,7 @@ export const CreateProfileView: React.FC<Props> = ({
 }) => {
 	const [name, setName] = React.useState('');
 	const [isLoading, setIsLoading] = React.useState(false);
+	const [submitError, setSubmitError] = React.useState<string | null>(null);
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -25,11 +26,18 @@ export const CreateProfileView: React.FC<Props> = ({
 		if (!trimmedName) return;
 
 		setIsLoading(true);
+		setSubmitError(null);
 		try {
 			await playerActions.setPlayerName(trimmedName);
 			if (onNameSet) {
 				onNameSet();
 			}
+		} catch (err) {
+			setSubmitError(
+				err instanceof Error && err.message
+					? err.message
+					: config.playerLobbyFullError
+			);
 		} finally {
 			setIsLoading(false);
 		}
@@ -47,6 +55,11 @@ export const CreateProfileView: React.FC<Props> = ({
 					{config.playerNameTitle}
 				</h2>
 				<form onSubmit={handleSubmit} className="space-y-4">
+					{submitError && (
+						<div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+							{submitError}
+						</div>
+					)}
 					<label className="block">
 						<input
 							type="text"

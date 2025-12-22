@@ -10,10 +10,7 @@ let isHandlingExplosion = false;
 let isHandlingPendingAnswer = false;
 
 export function useGlobalController() {
-	// Only the host should control the global logic
-	if (kmClient.clientContext.mode !== 'host') {
-		return false;
-	}
+	const isHost = kmClient.clientContext.mode === 'host';
 
 	const { controllerClientId, hostClientIds } = useSnapshot(globalStore.proxy);
 	const connections = useSnapshot(globalStore.connections);
@@ -24,6 +21,7 @@ export function useGlobalController() {
 
 	// Register this host client when mounting
 	useEffect(() => {
+		if (!isHost) return;
 		if (isRegistering.current) return;
 		if (hostClientIds.includes(kmClient.id)) return;
 
@@ -40,10 +38,11 @@ export function useGlobalController() {
 			.finally(() => {
 				isRegistering.current = false;
 			});
-	}, [hostClientIds]);
+	}, [hostClientIds, isHost]);
 
 	// Clean up offline hosts and elect new controller
 	useEffect(() => {
+		if (!isHost) return;
 		// Wait for connections to be established
 		if (clientIds.size === 0) return;
 
@@ -88,10 +87,14 @@ export function useGlobalController() {
 			.finally(() => {
 				isElecting.current = false;
 			});
-	}, [clientIds, controllerClientId, hostClientIds]);
+	}, [clientIds, controllerClientId, hostClientIds, isHost]);
 
 	// Run global controller-specific logic
 	useEffect(() => {
+		if (!isHost) {
+			return;
+		}
+
 		console.log('Controller effect:', {
 			isGlobalController,
 			controllerClientId,
@@ -180,7 +183,12 @@ export function useGlobalController() {
 			URL.revokeObjectURL(workerUrl);
 			activeWorker = null;
 		};
-	}, [isGlobalController]);
+	}, [controllerClientId, isGlobalController, isHost]);
+
+	// Only the host should control the global logic
+	if (!isHost) {
+		return false;
+	}
 
 	return isGlobalController;
 }
