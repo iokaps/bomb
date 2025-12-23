@@ -164,14 +164,9 @@ export const schema = z
 		maxPreparedQuestions: z.number().int().min(1).max(100).default(100),
 		avoidRecentQuestionsCount: z.number().int().min(0).max(200).default(50)
 	})
-	.superRefine((cfg, ctx) => {
-		if (cfg.minPreparedQuestions > cfg.maxPreparedQuestions) {
-			ctx.addIssue({
-				code: 'custom',
-				path: ['minPreparedQuestions'],
-				message: 'minPreparedQuestions must be <= maxPreparedQuestions'
-			});
-		}
+	.refine((data) => data.minPreparedQuestions <= data.maxPreparedQuestions, {
+		message: 'minPreparedQuestions must be <= maxPreparedQuestions',
+		path: ['minPreparedQuestions']
 	});
 
 export type Config = z.infer<typeof schema>;

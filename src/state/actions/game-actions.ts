@@ -99,20 +99,15 @@ function getFallbackPool() {
 
 // Calculate how many questions to generate based on player count
 function calculateQuestionCount(playerCount: number): number {
-	const HARD_MAX_PREPARED_QUESTIONS = 100;
-
 	// Linear formula: base + (players * per-player)
 	const baseCount =
 		playerCount * config.questionsPerPlayer + config.questionsBaseCount;
 
-	const maxAllowed = Math.min(
-		config.maxPreparedQuestions,
-		HARD_MAX_PREPARED_QUESTIONS
+	// Clamp to configured range (schema enforces max 100 for both values)
+	return Math.max(
+		config.minPreparedQuestions,
+		Math.min(config.maxPreparedQuestions, baseCount)
 	);
-	const minAllowed = Math.min(config.minPreparedQuestions, maxAllowed);
-
-	// Clamp to configured range (with hard cap)
-	return Math.max(minAllowed, Math.min(maxAllowed, baseCount));
 }
 
 // Get a fallback question
