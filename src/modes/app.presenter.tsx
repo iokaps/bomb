@@ -116,16 +116,14 @@ const App: React.FC = () => {
 
 			<div className="relative flex h-[calc(100vh-150px)] w-full flex-col">
 				{/* QR Code Overlay (Top Right) */}
-				{!winnerId && (
-					<div className="bg-game-surface absolute top-0 right-0 z-50 flex flex-col items-center gap-2 rounded-bl-2xl border-b border-l border-white/10 p-4 shadow-xl">
-						<div className="rounded-lg bg-white p-2">
-							<KmQrCode data={playerLink} size={100} interactive={false} />
-						</div>
-						<div className="text-game-text text-xs font-bold">
-							{config.presenterJoinGameLabel}
-						</div>
+				<div className="bg-game-surface absolute top-0 right-0 z-50 flex flex-col items-center gap-2 rounded-bl-2xl border-b border-l border-white/10 p-4 shadow-xl">
+					<div className="rounded-lg bg-white p-2">
+						<KmQrCode data={playerLink} size={100} interactive={false} />
 					</div>
-				)}
+					<div className="text-game-text text-xs font-bold">
+						{config.presenterJoinGameLabel}
+					</div>
+				</div>
 
 				{/* Main Arena (Circle) */}
 				<div className="relative flex flex-1 items-center justify-center">
